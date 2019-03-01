@@ -19,6 +19,7 @@ from pajbot.modules.basic.pointsreset import PointsResetModule
 from pajbot.modules.bingo import BingoModule
 from pajbot.modules.blackjack import BlackjackModule
 from pajbot.modules.chatters import ChattersModule
+from pajbot.modules.circle import CircleModule
 from pajbot.modules.deck import DeckModule
 from pajbot.modules.dotabet import DotaBetModule
 from pajbot.modules.dubtrack import DubtrackModule
@@ -82,6 +83,7 @@ available_modules = [
         BingoModule,
         ChattersModule,
         CheckModModule,
+        CircleModule,
         DBManageModule,
         DebugModule,
         DeckModule,

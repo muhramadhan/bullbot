@@ -4,8 +4,10 @@ import math
 
 import Levenshtein
 import requests
+from collections import Counter
 
 import pajbot.models
+from pajbot.managers.db import DBManager
 from pajbot.managers.handler import HandlerManager
 from pajbot.managers.schedule import ScheduleManager
 from pajbot.modules import BaseModule
@@ -51,7 +53,7 @@ class TriviaModule(BaseModule):
                 default=0,
                 constraints={
                     'min_value': 0,
-                    'max_value': 50,
+                    'max_value': 1000,
                     }),
             ]
 
@@ -60,21 +62,29 @@ class TriviaModule(BaseModule):
 
         self.job = ScheduleManager.execute_every(1, self.poll_trivia)
         self.job.pause()
+        self.checkjob = ScheduleManager.execute_every(10, self.check_run)
+        self.checkjob.pause()
 
         self.trivia_running = False
         self.last_question = None
         self.question = None
         self.step = 0
         self.last_step = None
+        self.correct_dict = {}
 
         self.point_bounty = 0
+
+    def format_question(self):
+        self.question['answer'].replace('<i>', '').replace('</i>', '').replace('\\', '').replace('(', '').replace(')', '')
+        self.question['answer'].strip('"').strip('.')
+        self.question['answer'].lstrip("a ").lstrip("the ")
 
     def poll_trivia(self):
         if self.question is None and (self.last_question is None or datetime.datetime.now() - self.last_question >= datetime.timedelta(seconds=12)):
             url = 'http://jservice.io/api/random'
             r = requests.get(url)
             self.question = r.json()[0]
-            self.question['answer'] = self.question['answer'].replace('<i>', '').replace('</i>', '').replace('\\', '').replace('(', '').replace(')', '').strip('"').strip('.')
+            self.format_question()
 
             if len(self.question['answer']) == 0 or len(self.question['question']) <= 1 or 'href=' in self.question['answer']:
                 self.question = None
@@ -97,7 +107,7 @@ class TriviaModule(BaseModule):
 
     def step_announce(self):
         try:
-            self.bot.me('OMGScoots A new question has begun! In the category "{0[category][title]}", the question/hint/clue is "{0[question]}" OMGScoots'.format(self.question))
+            self.bot.me('PogChamp A new question has begun! In the category "{0[category][title]}", the question/hint/clue is "{0[question]}" Bruh'.format(self.question))
         except:
             self.step = 0
             self.question = None
@@ -106,7 +116,7 @@ class TriviaModule(BaseModule):
     def step_hint(self):
         # find out what % of the answer should be revealed
         full_hint_reveal = int(math.floor(len(self.question['answer']) / 2))
-        current_hint_reveal = int(math.floor(((self.step) / self.settings['hint_count']) * full_hint_reveal))
+        current_hint_reveal = int(math.floor(((self.step) / 2.38) * full_hint_reveal))
         hint_arr = []
         index = 0
         for c in self.question['answer']:
@@ -124,20 +134,29 @@ class TriviaModule(BaseModule):
 
     def step_end(self):
         if self.question is not None:
-            self.bot.me('MingLee No one could answer the trivia! The answer was "{}" MingLee'.format(self.question['answer']))
+            self.bot.me('MingLee No one could answer the trivia! The answer was "{}" MingLee. Since you\'re all useless, DatGuy gets one point.'.format(self.question['answer']))
             self.question = None
             self.step = 0
             self.last_question = datetime.datetime.now()
+            with DBManager.create_session_scope() as db_session:
+                user = self.bot.users.find('datguy1', db_session=db_session)
+                user.points += 1
 
-    def command_start(self, **options):
-        bot = options['bot']
-        source = options['source']
-        message = options['message']
+    def check_run(self):
+        if self.bot.is_online:
+            self.job.pause()
+            self.trivia_running = False
+            self.step_end()
 
-        if self.trivia_running:
-            bot.me('{}, a trivia is already running'.format(source.username_raw))
+            self.bot.me('The trivia has been stopped.')
+
+            HandlerManager.remove_handler('on_message', self.on_message)
             return
+        else:
+            if not self.trivia_running:
+                self.start_trivia()
 
+    def start_trivia(self):
         self.trivia_running = True
         self.job.resume()
 
@@ -151,27 +170,47 @@ class TriviaModule(BaseModule):
             self.point_bounty = self.settings['default_point_bounty']
 
         if self.point_bounty > 0:
-            bot.me('The trivia has started! {} points for each right answer!'.format(self.point_bounty))
+            self.bot.me('The trivia has started! {} points for each right answer!'.format(self.point_bounty))
         else:
-            bot.me('The trivia has started!')
+            self.bot.me('The trivia has started!')
 
         HandlerManager.add_handler('on_message', self.on_message)
+
+    def stop_trivia(self):
+        self.job.pause()
+        self.trivia_running = False
+        self.step_end()
+        c = Counter(self.correct_dict)
+
+        for player, correct in c.most_common(3):
+            stopOutput += f'{player}, with {correct} correct guesses. '
+
+        bot.me(stopOutput)
+
+        HandlerManager.remove_handler('on_message', self.on_message)
+
+    def command_start(self, **options):
+        bot = options['bot']
+        source = options['source']
+        message = options['message']
+
+        if self.trivia_running:
+            bot.me('{}, a trivia is already running'.format(source.username_raw))
+            return
+
+        self.checkjob.resume()
+
 
     def command_stop(self, **options):
         bot = options['bot']
         source = options['source']
+        stopOutput = 'The trivia has been stopped. The top three participates are: '
 
         if not self.trivia_running:
             bot.me('{}, no trivia is active right now'.format(source.username_raw))
             return
 
-        self.job.pause()
-        self.trivia_running = False
-        self.step_end()
-
-        bot.me('The trivia has been stopped.')
-
-        HandlerManager.remove_handler('on_message', self.on_message)
+        self.checkjob.pause()
 
     def on_message(self, source, message, emotes, whisper, urls, event):
         if message is None:
@@ -184,7 +223,7 @@ class TriviaModule(BaseModule):
                 correct = right_answer == user_answer
             else:
                 ratio = Levenshtein.ratio(right_answer, user_answer)
-                correct = ratio >= 0.94
+                correct = ratio >= 0.88
 
             if correct:
                 if self.point_bounty > 0:
@@ -196,6 +235,8 @@ class TriviaModule(BaseModule):
                 self.question = None
                 self.step = 0
                 self.last_question = datetime.datetime.now()
+                self.correct_dict[source.username_raw] = self.correct_dict.get(source.username_raw, 0) + 1
+
 
     def load_commands(self, **options):
         self.commands['trivia'] = pajbot.models.command.Command.multiaction_command(
@@ -223,3 +264,6 @@ class TriviaModule(BaseModule):
 
     def enable(self, bot):
         self.bot = bot
+        self.checkjob.resume()
+    def disable(self, bot):
+        self.checkjob.pause()

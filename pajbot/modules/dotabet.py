@@ -40,17 +40,6 @@ class DotaBetModule(BaseModule):
                 required=True,
                 placeholder='',
                 default=''),
-            ModuleSetting(
-                key='return_pct',
-                label='Percent of bet that is returned',
-                type='number',
-                required=True,
-                placeholder='',
-                default=200,
-                constraints={
-                    'min_value': 1,
-                    'max_value': 1000,
-                    }),
             ]
 
     def __init__(self):
@@ -130,7 +119,7 @@ class DotaBetModule(BaseModule):
                 if correct_bet:
                     winners += 1
                     total_winnings += points + betPoints
-                    db_bets[user.username].profit = points
+                    db_bets[username].profit = points
                     user.points += points + betPoints
                     user.save()
                     self.bot.whisper(user.username, 'You bet {} points on the correct outcome and gained an extra {} points, ' \
