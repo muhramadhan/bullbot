@@ -64,6 +64,7 @@ class TriviaModule(BaseModule):
         self.job.pause()
         self.checkjob = ScheduleManager.execute_every(10, self.check_run)
         self.checkjob.pause()
+        self.checkPaused = True
 
         self.trivia_running = False
         self.last_question = None
@@ -75,9 +76,13 @@ class TriviaModule(BaseModule):
         self.point_bounty = 0
 
     def format_question(self):
-        self.question['answer'].replace('<i>', '').replace('</i>', '').replace('\\', '').replace('(', '').replace(')', '')
-        self.question['answer'].strip('"').strip('.')
-        self.question['answer'].lstrip("a ").lstrip("the ")
+        self.question['answer'] = self.question['answer'].replace('<i>', '').replace('</i>', '').replace('\\', '').replace('(', '').replace(')', '')
+        self.question['answer'] = self.question['answer'].strip('"').strip('.')
+
+        if self.question['answer'].startswith('a '):
+            self.question['answer'] = self.question['answer'].replace('a ', '')
+        if self.question['answer'].lower().startswith('the '):
+            self.question['answer'] = self.question['answer'].replace('the ', '')
 
     def poll_trivia(self):
         if self.question is None and (self.last_question is None or datetime.datetime.now() - self.last_question >= datetime.timedelta(seconds=12)):
@@ -116,7 +121,7 @@ class TriviaModule(BaseModule):
     def step_hint(self):
         # find out what % of the answer should be revealed
         full_hint_reveal = int(math.floor(len(self.question['answer']) / 2))
-        current_hint_reveal = int(math.floor(((self.step) / 2.38) * full_hint_reveal))
+        current_hint_reveal = int(math.floor(((self.step) / 2.2) * full_hint_reveal))
         hint_arr = []
         index = 0
         for c in self.question['answer']:
@@ -129,6 +134,8 @@ class TriviaModule(BaseModule):
                     hint_arr.append('_')
             index += 1
         hint_str = ''.join(hint_arr)
+        if (hint_str == hint_str[0] * len(hint_str)) and len(self.question['answer']) > 1:
+            hint_str = self.question['answer'][0]
 
         self.bot.me('OpieOP Here\'s a hint, "{hint_str}" OpieOP'.format(hint_str=hint_str))
 
@@ -154,9 +161,12 @@ class TriviaModule(BaseModule):
             return
         else:
             if not self.trivia_running:
-                self.start_trivia()
+                self.start_trivia(False)
 
-    def start_trivia(self):
+    def start_trivia(self, manualStart):
+        if self.checkPaused and not manualStart:
+            return
+
         self.trivia_running = True
         self.job.resume()
 
@@ -180,12 +190,14 @@ class TriviaModule(BaseModule):
         self.job.pause()
         self.trivia_running = False
         self.step_end()
+        stopOutput = 'The trivia has been stopped. The top five participates are: '
+
         c = Counter(self.correct_dict)
 
-        for player, correct in c.most_common(3):
+        for player, correct in c.most_common(5):
             stopOutput += f'{player}, with {correct} correct guesses. '
 
-        bot.me(stopOutput)
+        self.bot.me(stopOutput)
 
         HandlerManager.remove_handler('on_message', self.on_message)
 
@@ -198,18 +210,21 @@ class TriviaModule(BaseModule):
             bot.me('{}, a trivia is already running'.format(source.username_raw))
             return
 
+        self.start_trivia(True)
+        self.checkPaused = False
         self.checkjob.resume()
 
 
     def command_stop(self, **options):
         bot = options['bot']
         source = options['source']
-        stopOutput = 'The trivia has been stopped. The top three participates are: '
 
         if not self.trivia_running:
             bot.me('{}, no trivia is active right now'.format(source.username_raw))
             return
 
+        self.stop_trivia()
+        self.checkPaused = True
         self.checkjob.pause()
 
     def on_message(self, source, message, emotes, whisper, urls, event):
@@ -223,7 +238,7 @@ class TriviaModule(BaseModule):
                 correct = right_answer == user_answer
             else:
                 ratio = Levenshtein.ratio(right_answer, user_answer)
-                correct = ratio >= 0.88
+                correct = ratio >= 0.86
 
             if correct:
                 if self.point_bounty > 0:
@@ -265,5 +280,7 @@ class TriviaModule(BaseModule):
     def enable(self, bot):
         self.bot = bot
         self.checkjob.resume()
+        self.checkPaused = False
     def disable(self, bot):
         self.checkjob.pause()
+        self.checkPaused = True

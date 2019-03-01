@@ -22,6 +22,14 @@ class ScheduledJob:
         if self.job:
             self.job.remove(*args, **kwargs)
 
+    # TODO
+    """def isRunning(self, *args, **kwargs):
+        if self.job:
+            if self.job.running:
+                return True
+            else:
+                return False"""
+
 
 class ScheduleManager:
     base_scheduler = None
