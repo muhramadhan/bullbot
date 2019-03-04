@@ -102,7 +102,7 @@ class TriviaModule(BaseModule):
                 self.question['question'] = base64.b64decode(resjson['question']).decode('utf-8')
                 self.question['answer'] = base64.b64decode(resjson['correct_answer']).decode('utf-8')
 
-            if len(self.question['answer']) == 0 or len(self.question['question']) <= 1 or 'href=' in self.question['answer']:
+            if len(self.question['answer']) == 0 or len(self.question['question']) <= 1 or 'href=' in self.question['answer'] or 'Which of these' in self.question['answer']:
                 self.question = None
                 return
 
@@ -207,6 +207,7 @@ class TriviaModule(BaseModule):
             stopOutput += f'{player}, with {correct} correct guesses. '
 
         self.bot.me(stopOutput)
+        self.correct_dict = {}
 
         HandlerManager.remove_handler('on_message', self.on_message)
 
