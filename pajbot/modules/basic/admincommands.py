@@ -187,10 +187,10 @@ class AdminCommandsModule(BaseModule):
 
     def load_commands(self, **options):
         self.commands['w'] = pajbot.models.command.Command.raw_command(self.whisper,
-                level=2000,
+                level=1000,
                 description='Send a whisper from the bot')
         self.commands['editpoints'] = pajbot.models.command.Command.raw_command(self.edit_points,
-                level=1500,
+                level=1000,
                 description='Modifies a users points',
                 examples=[
                     pajbot.models.command.CommandExample(None, 'Give a user points',
@@ -203,7 +203,7 @@ class AdminCommandsModule(BaseModule):
                         description='This removes 500 points from DatGuy1. Users can go into negative points with this.').parse(),
                     ])
         self.commands['level'] = pajbot.models.command.Command.raw_command(self.level,
-                level=1000,
+                level=1500,
                 description='Set a users level')
 
         self.commands['silence'] = pajbot.models.command.Command.raw_command(self.cmd_silence,

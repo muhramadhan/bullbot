@@ -1,3 +1,4 @@
+import base64
 import datetime
 import logging
 import math
@@ -66,7 +67,9 @@ class TriviaModule(BaseModule):
         self.checkjob.pause()
         self.checkPaused = True
 
+        self.jservice = False
         self.trivia_running = False
+        self.manualStart = False
         self.last_question = None
         self.question = None
         self.step = 0
@@ -81,15 +84,23 @@ class TriviaModule(BaseModule):
 
         if self.question['answer'].startswith('a '):
             self.question['answer'] = self.question['answer'].replace('a ', '')
+        elif self.question['answer'].startswith('an '):
+            self.question['answer'] = self.question['answer'].replace('an ', '')
         if self.question['answer'].lower().startswith('the '):
             self.question['answer'] = self.question['answer'].replace('the ', '')
 
     def poll_trivia(self):
         if self.question is None and (self.last_question is None or datetime.datetime.now() - self.last_question >= datetime.timedelta(seconds=12)):
-            url = 'http://jservice.io/api/random'
-            r = requests.get(url)
-            self.question = r.json()[0]
-            self.format_question()
+            if self.jservice:
+                r = requests.get('http://jservice.io/api/random')
+                self.question = r.json()[0]
+                self.format_question()
+            else:
+                r = requests.get('https://opentdb.com/api.php?amount=1&category=15&type=multiple&encode=base64')
+                resjson = r.json()['results'][0]
+                self.question = {}
+                self.question['question'] = base64.b64decode(resjson['question']).decode('utf-8')
+                self.question['answer'] = base64.b64decode(resjson['correct_answer']).decode('utf-8')
 
             if len(self.question['answer']) == 0 or len(self.question['question']) <= 1 or 'href=' in self.question['answer']:
                 self.question = None
@@ -112,7 +123,10 @@ class TriviaModule(BaseModule):
 
     def step_announce(self):
         try:
-            self.bot.me('PogChamp A new question has begun! In the category "{0[category][title]}", the question/hint/clue is "{0[question]}" Bruh'.format(self.question))
+            if self.jservice:
+                self.bot.me('PogChamp A new question has begun! In the category "{0[category][title]}", the question/hint/clue is "{0[question]}" Bruh'.format(self.question))
+            else:
+                self.bot.me('PogChamp A new question has begun! The question is: "{0[question]}"'.format(self.question))
         except:
             self.step = 0
             self.question = None
@@ -135,7 +149,9 @@ class TriviaModule(BaseModule):
             index += 1
         hint_str = ''.join(hint_arr)
         if (hint_str == hint_str[0] * len(hint_str)) and len(self.question['answer']) > 1:
-            hint_str = self.question['answer'][0]
+            copy_str = self.question['answer'][0]
+            copy_str += hint_str[1:]
+            hint_str = copy_str
 
         self.bot.me('OpieOP Here\'s a hint, "{hint_str}" OpieOP'.format(hint_str=hint_str))
 
@@ -151,20 +167,15 @@ class TriviaModule(BaseModule):
 
     def check_run(self):
         if self.bot.is_online:
-            self.job.pause()
-            self.trivia_running = False
-            self.step_end()
-
-            self.bot.me('The trivia has been stopped.')
-
-            HandlerManager.remove_handler('on_message', self.on_message)
-            return
+             if self.trivia_running and not self.manualStart:
+                self.stop_trivia()
         else:
             if not self.trivia_running:
-                self.start_trivia(False)
+                self.manualStart = False
+                self.start_trivia()
 
-    def start_trivia(self, manualStart):
-        if self.checkPaused and not manualStart:
+    def start_trivia(self, message = None):
+        if self.checkPaused and not self.manualStart:
             return
 
         self.trivia_running = True
@@ -174,8 +185,6 @@ class TriviaModule(BaseModule):
             self.point_bounty = int(message)
             if self.point_bounty < 0:
                 self.point_bounty = 0
-            elif self.point_bounty > 50:
-                self.point_bounty = 50
         except:
             self.point_bounty = self.settings['default_point_bounty']
 
@@ -190,7 +199,7 @@ class TriviaModule(BaseModule):
         self.job.pause()
         self.trivia_running = False
         self.step_end()
-        stopOutput = 'The trivia has been stopped. The top five participates are: '
+        stopOutput = 'The trivia has been stopped. The top five participants are: '
 
         c = Counter(self.correct_dict)
 
@@ -210,7 +219,8 @@ class TriviaModule(BaseModule):
             bot.me('{}, a trivia is already running'.format(source.username_raw))
             return
 
-        self.start_trivia(True)
+        self.manualStart = True
+        self.start_trivia(message)
         self.checkPaused = False
         self.checkjob.resume()
 

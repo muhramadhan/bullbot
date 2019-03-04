@@ -54,7 +54,7 @@ class DonationPointsModule(BaseModule):
 
             ModuleSetting(
                 key='multiplynum',
-                label='How much of the donation to multiply by',
+                label='One usd equals how many points',
                 type='number',
                 required=True),
 

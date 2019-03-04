@@ -249,12 +249,24 @@ class SubAlertModule(BaseModule):
                 log.debug('subalert msg-id is resub, but missing msg-param-sub-plan: {}'.format(tags))
                 return
 
-            # log.debug('msg-id resub tags: {}'.format(tags))
-            source.points += 2500
-            self.bot.say('{} has been given 2500 points for resebbin FreakinStinkin'.format(source.username))
+            tierSub = ''
+            addPoints = 2500
+            if 'msg-param-sub-plan' not in tags:
+                log.debug('subalert msg-id is sub, but missing msg-param-sub-plan: {}'.format(tags))
+                return
+
+            if tags['msg-param-sub-plan'].startswith('2'):
+                addPoints = 5000
+                tierSub = 'super '
+            if tags['msg-param-sub-plan'].startswith('3'):
+                tierSub = 'mega '
+                addPoints = 12500
+
+            source.points += addPoints
+            self.bot.say('{} has been given {} points for {}resebbin FreakinStinkin'.format(source.username, addPoints, tierSub))
             
         elif tags['msg-id'] == 'subgift':
-            addPoints = 1000
+            addPoints = 2500
             tierSub = ''
 
             if 'display-name' not in tags:
@@ -265,11 +277,11 @@ class SubAlertModule(BaseModule):
                 return
 
             if tags['msg-param-sub-plan'].startswith('2'):
-                addPoints = 3000
+                addPoints = 5000
                 tierSub = 'super'
             if tags['msg-param-sub-plan'].startswith('3'):
                 tierSub = 'mega'
-                addPoints = 7000
+                addPoints = 12500
 
             source.points += addPoints
             self.bot.say('{} has been given {} points due to gifting {} a {}sub. ' \
@@ -300,12 +312,21 @@ class SubAlertModule(BaseModule):
                                                                         tierSub, extraBanter))
 
         elif tags['msg-id'] == 'sub':
+            tierSub = ''
+            addPoints = 2500
             if 'msg-param-sub-plan' not in tags:
                 log.debug('subalert msg-id is sub, but missing msg-param-sub-plan: {}'.format(tags))
                 return
 
-            source.points += 2500
-            self.bot.say('{} has been given 2500 points for sebbin FreakinStinkin'.format(source.username))
+            if tags['msg-param-sub-plan'].startswith('2'):
+                addPoints = 5000
+                tierSub = 'super '
+            if tags['msg-param-sub-plan'].startswith('3'):
+                tierSub = 'mega '
+                addPoints = 12500
+
+            source.points += addPoints
+            self.bot.say('{} has been given {} points for {}sebbin FreakinStinkin'.format(source.username, addPoints, tierSub))
         else:
             log.debug('Unhandled msg-id: {} - tags: {}'.format(tags['msg-id'], tags))
 

@@ -253,10 +253,10 @@ class CommandManager(UserDict):
         self.internal_commands['del'] = self.internal_commands['remove']
         self.internal_commands['delete'] = self.internal_commands['remove']
         self.internal_commands['eval'] = Command.dispatch_command('eval',
-                level=2000,
+                level=1000,
                 description='Run a raw python command. Debug mode only')
         self.internal_commands['colour'] = Command.dispatch_command('color',
-                level=2000)
+                level=1000)
 
         return self.internal_commands
 
