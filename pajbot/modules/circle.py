@@ -34,8 +34,52 @@ class CircleModule(BaseModule):
             ]
 
     def __init__(self):
-        # self.badPhrases = ['xd', 'bla']
-        self.startingString = "repme2 repme2 ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ repme2 repme1 repme2 ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ repme2 repme2"
+        self.circleString = "repme2 repme2 ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ repme2 repme1 repme2 ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ repme2 repme2"
+        self.pyramidString = "repme1 ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ repme1 repme1 ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ repme1 repme1 repme1 ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ repme1 repme1 repme1 repme1 ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ repme1 repme1 repme1 repme1 repme1"
+        self.reversePyramid = "⠀ ⠀ ⠀ ⠀ ⠀ repme1 repme1 repme1 repme1 ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ repme1 repme1 repme1 ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ repme1 repme1 ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ ⠀ repme1"
+
+    def replace_say(self, sayString, bot, source):
+        if any(badPhrase in sayString.split() for badPhrase in self.badPhrases):
+            bot.whisper(source.username, 'One or more of the replacements you chose are disallowed. Your points have been refunded.')
+            return False
+
+        if bot.is_bad_message(sayString):
+            bot.whisper(source.username, 'One or more of the replacements you chose are disallowed. Your points have been refunded.')
+            return False
+        else:
+            bot.say(sayString)
+
+    # TODO: Centralise to one function
+
+    def command_pyramid(self, **options):
+        bot = options['bot']
+        source = options['source']
+        message = options['message']
+
+        if not message:
+            bot.whisper(source.username, 'Invalid syntax. Usage: !pyramid word')
+            return False
+
+        splitMsg = message.split()
+        sayString = self.pyramidString
+
+        sayString = sayString.replace('repme1', splitMsg[0])
+        self.replace_say(sayString, bot, source)
+
+    def command_reverse(self, **options):
+        bot = options['bot']
+        source = options['source']
+        message = options['message']
+
+        if not message:
+            bot.whisper(source.username, 'Invalid syntax. Usage: !reversepyramid word')
+            return False
+
+        splitMsg = message.split()
+        sayString = self.reversePyramid
+
+        sayString = sayString.replace('repme1', splitMsg[0])
+        self.replace_say(sayString, bot, source)
 
     def command_circle(self, **options):
         bot = options['bot']
@@ -47,11 +91,7 @@ class CircleModule(BaseModule):
             return False
 
         splitMsg = message.split()
-        sayString = self.startingString
-
-        if any(badPhrase in splitMsg for badPhrase in self.badPhrases):
-            bot.whisper(source.username, 'One or more of the replacements you chose are disallowed. Your points have been refunded.')
-            return False
+        sayString = self.circleString
 
         if len(splitMsg) == 1:
             sayString = sayString.replace('repme2', splitMsg[0])
@@ -60,11 +100,7 @@ class CircleModule(BaseModule):
             sayString = sayString.replace('repme2', splitMsg[1])
             sayString = sayString.replace('repme1', splitMsg[0])
 
-        if not bot.is_bad_message(sayString):
-            bot.say(sayString)
-        else:
-            bot.whisper(source.username, 'One or more of the replacements you chose are disallowed. Your points have been refunded.')
-            return False
+        self.replace_say(sayString, bot, source)
 
     def load_commands(self, **options):
         self.commands['circle'] = pajbot.models.command.Command.raw_command(self.command_circle,
@@ -75,6 +111,24 @@ class CircleModule(BaseModule):
             cost = self.settings['circle_cost'],
             description='Generate a circle'
             )
+        self.commands['pyramid'] = pajbot.models.command.Command.raw_command(self.command_pyramid,
+            level = 100,
+            delay_all = 5,
+            delay_user = 0,
+            can_execute_with_whisper = False,
+            cost = self.settings['circle_cost'],
+            description='Generate a pyramid'
+            )
+        self.commands['reversepyramid'] = pajbot.models.command.Command.raw_command(self.command_reverse,
+            level = 100,
+            delay_all = 5,
+            delay_user = 0,
+            can_execute_with_whisper = False,
+            cost = self.settings['circle_cost'],
+            description='Generate a reverse pyramid'
+            )
+        self.commands['pyr'] = self.commands['pyramid']
+        self.commands['reversepyr'] = self.commands['reversepyramid']
 
     def enable(self, bot):
         self.badPhrases = self.settings['bad_phrases'].split('|')

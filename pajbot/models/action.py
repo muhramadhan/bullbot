@@ -450,7 +450,7 @@ def urlfetch_msg(method, message, num_urlfetch_subs, bot, extra={}, args=[], kwa
 
     for needle, url in urlfetch_subs.items():
         try:
-            r = requests.get(url)
+            r = requests.get(url, headers={'Accept': 'text/plain'})
             r.raise_for_status()
             value = r.text.strip().replace('\n', '').replace('\r', '')[:400]
         except:

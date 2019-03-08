@@ -41,17 +41,22 @@ class QuoteModule(BaseModule):
             return False
 
         with bot.users.find_context(username) as target:
-            r = requests.get("{}/{}/random".format(self.baseURL, username))
+            while True:
+                r = requests.get("{}/{}/random".format(self.baseURL, username))
+        
+                if target is None:
+                    bot.say('This user does not exist FailFish')
+                    return False
+    
+                if r.status_code != 200 or not r.text:
+                    bot.say('Error with fetching website: {}'.format(r.status_code))
+                    return False
 
-            if target is None:
-                bot.say('This user does not exist FailFish')
-                return False
+                if f'{username} was timed out for ' in r.text:
+                    continue
 
-            if r.status_code != 200 or not r.text:
-                bot.say('Error with fetching website: {}'.format(r.status_code))
-                return False
-
-            bot.say('{}: {}'.format(username, r.text))
+                bot.say('{}: {}'.format(username, r.text))
+                break
 
     def last_quote(self, **options):
         bot = options['bot']
@@ -86,8 +91,15 @@ class QuoteModule(BaseModule):
 
             recentMsg = r.text.splitlines()[-1]
 
+            try:
+                formatMsg = re.search(r'ldon (.*)', recentMsg).group(1)
+            except AttributeError:
+                bot.say('{} was most recently timed out.'.format(username))
 
-            bot.say(re.search(r'ldog (.*)', recentMsg).group(1))
+            if bot.is_bad_message(r.text):
+                bot.say('{}\'s recent message has a bad word :\\'.format(username))
+            else:
+                bot.say('{}: {}'.format(username, formatMsg))
 
     def load_commands(self, **options):
         self.commands['rq'] = pajbot.models.command.Command.raw_command(
@@ -102,4 +114,5 @@ class QuoteModule(BaseModule):
                 delay_user=5
         )
         self.commands['lq'] = self.commands['lastquote']
+        self.commands['lastmessage'] = self.commands['lastquote']
         self.commands['lastmessage'] = self.commands['lastquote']

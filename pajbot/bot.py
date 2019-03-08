@@ -662,7 +662,9 @@ class Bot:
         return self.banphrase_manager.check_message(message, None) is not False
 
     def safe_me(self, message, channel=None):
-        if not self.is_bad_message(message):
+        if self.is_bad_message(message):
+            self.me('I would send a message but it\'s bannable :\\', channel)
+        else:
             self.me(message, channel)
 
     def me(self, message, channel=None):
