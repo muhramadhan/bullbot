@@ -5,9 +5,7 @@ import math
 
 import Levenshtein
 import requests
-import random
 from collections import Counter
-from word2number import w2n
 
 import pajbot.models
 from pajbot.managers.db import DBManager
@@ -77,11 +75,12 @@ class TriviaModule(BaseModule):
         self.step = 0
         self.last_step = None
         self.correct_dict = {}
-        self.gazCategories = ['W_OMEGALUL_W', 'Vietnam', 'Video_Games', 'Video Games', 'Twitch', 'Sports', 'Spongebob', 'Jokes', 'Science', 'Programming', 'Music',
-                              'Memes', 'Math', 'Maths', 'Movies', 'Languages', 'History', 'Geography', 'Gachimuchi', 'Gachi', 'Emotes', 'Bees', 'Country', 'Books']
-
+        self.recent_questions = list()   # List of most recent questions
         self.point_bounty = 0
-
+        self.q_memory = 0                # No. of recent questions to remember
+        self.winstreak = [None,None]     # Stored winstreak [user name, winstreak]
+        self.min_streak = 5              # minimum correct answers for a streak to show up
+        
     def format_question(self):
         self.question['answer'] = self.question['answer'].replace('<i>', '').replace('</i>', '').replace('\\', '').replace('(', '').replace(')', '')
         self.question['answer'] = self.question['answer'].strip('"').strip('.')
@@ -92,54 +91,37 @@ class TriviaModule(BaseModule):
             self.question['answer'] = self.question['answer'].replace('an ', '')
         if self.question['answer'].lower().startswith('the '):
             self.question['answer'] = self.question['answer'].replace('the ', '')
-
+                    
+    ############################################################################        
+    ############################################################################
+    
     def poll_trivia(self):
-        if self.question is None and (self.last_question is None or datetime.datetime.now() - self.last_question >= datetime.timedelta(seconds=11)):
+        # Load question if no current question or time since last question
+        if self.question is None \
+        and (self.last_question is None \
+             or datetime.datetime.now() \
+             - self.last_question >= datetime.timedelta(seconds=12)):
+            # get question if database loaded
             if self.jservice:
-                r = requests.get('http://jservice.io/api/random')
-                self.question = r.json()[0]
-                self.format_question()
+                while True:
+                    r = requests.get('http://jservice.io/api/random')
+                    self.question = r.json()[0]
+                    
+                    self.format_question()
+                    # check question isn't repeat of recent one.
+                    if self.question[''] not in self.recent_questions:
+                        if len(self.recent_questions) > self.q_memory:
+                            del self.recent_questions[0]
+                        self.recent_questions.append(self.question['question'])
+                        break
             else:
-                chosenInt = random.randint(0, 10)
-                if chosenInt < 3:
-                    self.gazatuService = True
-                    category = random.choice([9, 11, 15, 17, 18, 20, 21, 22, 23, 24, 26, 27, 29, 30])
-                    r = requests.get('https://opentdb.com/api.php?amount=1&category={}&type=multiple&encode=base64'.format(category))
-                    try:
-                        resjson = r.json()['results'][0]
-                    except:
-                        return
+                r = requests.get('https://opentdb.com/api.php?amount=1&category=15&type=multiple&encode=base64')
+                resjson = r.json()['results'][0]
+                self.question = {}
+                self.question['question'] = base64.b64decode(resjson['question']).decode('utf-8')
+                self.question['answer'] = base64.b64decode(resjson['correct_answer']).decode('utf-8')
 
-                    self.question = {}
-                    self.question['question'] = base64.b64decode(resjson['question']).decode('utf-8')
-
-                    # Should take care of answers like 'eighteen,' etc.
-                    startAnswer = base64.b64decode(resjson['correct_answer']).decode('utf-8')
-                    try:
-                        self.question['answer'] = str(w2n.word_to_num(startAnswer))
-                    except ValueError:
-                        self.question['answer'] = startAnswer
-
-                    self.question['answer'] = self.question['answer'].strip()
-                    self.question['category'] = base64.b64decode(resjson['category']).decode('utf-8')
-                else:
-                    self.gazatuService = True
-                    # category = random.choice(self.gazCategories)
-                    # r = requests.get('https://api.gazatu.xyz/trivia/questions?count=1&include=[{}]'.format(category)) # Can do ','.join(categories) but this way it's more varied
-                    r = requests.get('https://api.gazatu.xyz/trivia/questions?count=1&include=[{}]'.format(','.join(self.gazCategories)))
-                    resjson = r.json()[0]
-                    if resjson['disabled']:
-                        self.question = None
-                        return
-
-                    self.question = resjson
-                    self.question['category'] = self.question['category'].replace('_', ' ')
-
-            ## FIXME: Cleanup this bullshit
-            if (len(self.question['answer']) == 0 or len(self.question['question']) <= 1 or 'href=' in self.question['answer']
-                or 'Which of these' in self.question['question'] or 'Which one of these' in self.question['question']
-                or 'Which of the following' in self.question['question']):
-
+            if len(self.question['answer']) == 0 or len(self.question['question']) <= 1 or 'href=' in self.question['answer'] or 'Which of these' in self.question['answer']:
                 self.question = None
                 return
 
@@ -161,9 +143,9 @@ class TriviaModule(BaseModule):
     def step_announce(self):
         try:
             if self.jservice:
-                self.bot.safe_me('PogChamp A new question has begun! In the category "{0[category][title]}", the question/hint/clue is "{0[question]}" Bruh'.format(self.question))
+                self.bot.me('PogChamp A new question has begun! In the category "{0[category][title]}", the question/hint/clue is "{0[question]}" Bruh'.format(self.question))
             else:
-                self.bot.safe_me('PogChamp A new question has begun! In the category "{0[category]}", the question is: "{0[question]}"'.format(self.question))
+                self.bot.me('PogChamp A new question has begun! The question is: "{0[question]}"'.format(self.question))
         except:
             self.step = 0
             self.question = None
@@ -190,11 +172,11 @@ class TriviaModule(BaseModule):
             copy_str += hint_str[1:]
             hint_str = copy_str
 
-        self.bot.safe_me('OpieOP Here\'s a hint, "{hint_str}" OpieOP'.format(hint_str=hint_str))
+        self.bot.me('OpieOP Here\'s a hint, "{hint_str}" OpieOP'.format(hint_str=hint_str))
 
     def step_end(self):
         if self.question is not None:
-            self.bot.safe_me('MingLee No one could answer the trivia! The answer was "{}" MingLee. Since you\'re all useless, DatGuy gets one point.'.format(self.question['answer']))
+            self.bot.me('MingLee No one could answer the trivia! The answer was "{}" MingLee. Since you\'re all useless, DatGuy gets one point.'.format(self.question['answer']))
             self.question = None
             self.step = 0
             self.last_question = datetime.datetime.now()
@@ -243,7 +225,7 @@ class TriviaModule(BaseModule):
         for player, correct in c.most_common(5):
             stopOutput += f'{player}, with {correct} correct guesses. '
 
-        self.bot.safe_me(stopOutput)
+        self.bot.me(stopOutput)
         self.correct_dict = {}
 
         HandlerManager.remove_handler('on_message', self.on_message)
@@ -275,14 +257,6 @@ class TriviaModule(BaseModule):
         self.checkPaused = True
         self.checkjob.pause()
 
-    def command_skip(self, **options):
-        if self.question is None:
-            options['bot'].say('There is no question currently.')
-        else:
-            self.question = None
-            self.step = 0
-            self.last_question = None
-
     def on_message(self, source, message, emotes, whisper, urls, event):
         if message is None:
             return
@@ -298,15 +272,25 @@ class TriviaModule(BaseModule):
 
             if correct:
                 if self.point_bounty > 0:
-                    self.bot.safe_me('{} got the answer right! The answer was {} FeelsGoodMan They get {} points! PogChamp'.format(source.username_raw, self.question['answer'], self.point_bounty))
+                    self.bot.me('{} got the answer right! The answer was {} FeelsGoodMan They get {} points! PogChamp'.format(source.username_raw, self.question['answer'], self.point_bounty))
                     source.points += self.point_bounty
                 else:
-                    self.bot.safe_me('{} got the answer right! The answer was {} FeelsGoodMan'.format(source.username_raw, self.question['answer']))
+                    self.bot.me('{} got the answer right! The answer was {} FeelsGoodMan'.format(source.username_raw, self.question['answer']))
 
                 self.question = None
                 self.step = 0
                 self.last_question = datetime.datetime.now()
                 self.correct_dict[source.username_raw] = self.correct_dict.get(source.username_raw, 0) + 1
+                # record winstreak of correct answers for user
+
+                if source.username_raw != self.winstreak[0]:
+                    self.winstreak = [source.username_raw, 1]
+                else:
+                    self.winstreak[1] += 1
+                    if self.winstreak[1] >= self.min_streak:
+                        self.bot.me('{} is on a {} answer streak PogU '.format(
+                            *self.winstreak))
+                
 
 
     def load_commands(self, **options):
@@ -330,13 +314,6 @@ class TriviaModule(BaseModule):
                         delay_user=0,
                         can_execute_with_whisper=True,
                         ),
-                    'skip': pajbot.models.command.Command.raw_command(
-                        self.command_skip,
-                        level=500,
-                        delay_all=0,
-                        delay_user=0,
-                        can_execute_with_whisper=True,
-                        )
                     }
                 )
 
