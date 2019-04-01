@@ -77,9 +77,19 @@ class TriviaModule(BaseModule):
         self.step = 0
         self.last_step = None
         self.correct_dict = {}
-        self.gazCategories = ['W_OMEGALUL_W', 'Vietnam', 'Video_Games', 'Video Games', 'Twitch', 'Sports', 'Spongebob', 'Jokes', 'Science', 'Programming', 'Music',
-                              'Memes', 'Math', 'Maths', 'Movies', 'Languages', 'History', 'Geography', 'Gachimuchi', 'Gachi', 'Emotes', 'Bees', 'Country', 'Books']
-
+        
+        self.gazCategories = ['W_OMEGALUL_W', 'Vietnam', 'Video_Games',
+                              'Video Games', 'Twitch', 'Sports', 'Spongebob',
+                              'Jokes', 'Science', 'Programming', 'Music',
+                              'Memes', 'Math', 'Maths', 'Movies', 'Languages',
+                              'History', 'Geography', 'Gachimuchi', 'Gachi',
+                              'Emotes', 'Bees', 'Country', 'Books']
+        
+        self.recent_questions = list() # List of most recent questions
+        self.q_memory = 200            # No. of recent questions to remember
+        self.winstreak = [None,None]   # Stored winstreak [user name, winstreak]
+        self.min_streak = 3            # minimum correct answers for a streak 
+        
         self.point_bounty = 0
 
     def format_question(self):
@@ -88,57 +98,94 @@ class TriviaModule(BaseModule):
 
         if self.question['answer'].startswith('a '):
             self.question['answer'] = self.question['answer'].replace('a ', '')
+            
         elif self.question['answer'].startswith('an '):
             self.question['answer'] = self.question['answer'].replace('an ', '')
+            
         if self.question['answer'].lower().startswith('the '):
             self.question['answer'] = self.question['answer'].replace('the ', '')
 
     def poll_trivia(self):
-        if self.question is None and (self.last_question is None or datetime.datetime.now() - self.last_question >= datetime.timedelta(seconds=11)):
+        #######################################################################
+        #######################################################################
+        # Check if new question needed
+        if self.question is None and \
+        ( self.last_question is None \
+          or (datetime.datetime.now() - self.last_question) \
+          >= datetime.timedelta(seconds=11) ):
+
+
+            # GET TRIVIA QUESTION
+
+            new_question = False
             if self.jservice:
-                r = requests.get('http://jservice.io/api/random')
-                self.question = r.json()[0]
-                self.format_question()
+                # Load from jservice database
+
+                while not new_question:
+                    r = requests.get('http://jservice.io/api/random')
+                    self.question = r.json()[0]
+
+                    # check question isn't repeat of recent one.
+                    if self.question['question'] not in self.recent_questions:
+                        self.format_question()
+                        self.recent_questions.append(self.question['question'])
+                        new_question = True
+
             else:
+                # Load from gazatu and opentdb
                 chosenInt = random.randint(0, 10)
-                if chosenInt < 3:
+                if chosenInt < 3: # load opentdb
                     self.gazatuService = True
-                    category = random.choice([9, 11, 15, 17, 18, 20, 21, 22, 23, 24, 26, 27, 29, 30])
-                    r = requests.get('https://opentdb.com/api.php?amount=1&category={}&type=multiple&encode=base64'.format(category))
-                    try:
-                        resjson = r.json()['results'][0]
-                    except:
-                        return
+                    category = random.choice([9, 11, 15, 17, 18, 20, 21, 22, 23,
+                                              24, 26, 27, 29, 30])
+                    while not new_question:                                       
+                        r = requests.get('https://opentdb.com/api.php?amount=1&category={}&type=multiple&encode=base64'.format(category))
+                        try:
+                            resjson = r.json()['results'][0]
+                        except:
+                            return
 
-                    self.question = {}
-                    self.question['question'] = base64.b64decode(resjson['question']).decode('utf-8')
+                        self.question = {}
+                        self.question['question'] = base64.b64decode(resjson['question']).decode('utf-8')
 
-                    # Should take care of answers like 'eighteen,' etc.
-                    startAnswer = base64.b64decode(resjson['correct_answer']).decode('utf-8')
-                    try:
-                        self.question['answer'] = str(w2n.word_to_num(startAnswer))
-                    except ValueError:
-                        self.question['answer'] = startAnswer
+                        # Should take care of answers like 'eighteen,' etc.
+                        startAnswer = base64.b64decode(resjson['correct_answer']).decode('utf-8')
+                        try:
+                            self.question['answer'] = str(w2n.word_to_num(startAnswer))
+                        except ValueError:
+                            self.question['answer'] = startAnswer
 
-                    self.question['answer'] = self.question['answer'].strip()
-                    self.question['category'] = base64.b64decode(resjson['category']).decode('utf-8')
+                        self.question['answer'] = self.question['answer'].strip()
+                        self.question['category'] = base64.b64decode(resjson['category']).decode('utf-8')
+                        # check question isn't repeat of recent one.
+                        if self.question['question'] not in self.recent_questions:
+                            self.recent_questions.append(self.question['question'])
+                            new_question = True
                 else:
                     self.gazatuService = True
                     # category = random.choice(self.gazCategories)
                     # r = requests.get('https://api.gazatu.xyz/trivia/questions?count=1&include=[{}]'.format(category)) # Can do ','.join(categories) but this way it's more varied
-                    r = requests.get('https://api.gazatu.xyz/trivia/questions?count=1&include=[{}]'.format(','.join(self.gazCategories)))
-                    resjson = r.json()[0]
-                    if resjson['disabled']:
-                        self.question = None
-                        return
-
-                    self.question = resjson
-                    self.question['category'] = self.question['category'].replace('_', ' ')
-
+                    while not new_question:
+                        r = requests.get('https://api.gazatu.xyz/trivia/questions?count=1&include=[{}]'.format(','.join(self.gazCategories)))
+                        resjson = r.json()[0]
+                        if resjson['disabled']:
+                            self.question = None
+                            return
+                        self.question = resjson
+                        if self.question['question'] not in self.recent_questions:
+                            self.recent_questions.append(self.question['question'])
+                            self.question['category'] = self.question['category'].replace('_', ' ')
+                            new_question = True
+            # Remove oldest question
+            if len(self.recent_questions) > self.q_memory:
+                del self.recent_questions[0]
+                
             ## FIXME: Cleanup this bullshit
-            if (len(self.question['answer']) == 0 or len(self.question['question']) <= 1 or 'href=' in self.question['answer']
-                or 'Which of these' in self.question['question'] or 'Which one of these' in self.question['question']
-                or 'Which of the following' in self.question['question']):
+            if not self.question['answer'] or not self.question['question'] or \
+               'href=' in self.question['answer'] or \
+               'Which of these' in self.question['question'] or \
+               'Which one of these' in self.question['question'] or \
+               'Which of the following' in self.question['question']):
 
                 self.question = None
                 return
@@ -146,8 +193,11 @@ class TriviaModule(BaseModule):
             self.step = 0
             self.last_step = None
 
+        ########################################################################
+        ########################################################################
         # Is it time for the next step?
-        if self.last_step is None or datetime.datetime.now() - self.last_step >= datetime.timedelta(seconds=self.settings['step_delay']):
+        
+        if self.last_step is None or (datetime.datetime.now() - self.last_step >= datetime.timedelta(seconds=self.settings['step_delay']):
             self.last_step = datetime.datetime.now()
             self.step += 1
 
@@ -307,7 +357,15 @@ class TriviaModule(BaseModule):
                 self.step = 0
                 self.last_question = datetime.datetime.now()
                 self.correct_dict[source.username_raw] = self.correct_dict.get(source.username_raw, 0) + 1
-
+                                      
+                # record winstreak of correct answers for user
+                if source.username_raw != self.winstreak[0]:
+                    self.winstreak = [source.username_raw, 1]
+                else:
+                    self.winstreak[1] += 1
+                    if self.winstreak[1] >= self.min_streak:
+                        self.bot.me('{} is on a {} streak of correct answers PogU'.format(
+                            *self.winstreak))
 
     def load_commands(self, **options):
         self.commands['trivia'] = pajbot.models.command.Command.multiaction_command(
