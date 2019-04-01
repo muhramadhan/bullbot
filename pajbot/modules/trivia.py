@@ -103,24 +103,25 @@ class TriviaModule(BaseModule):
              - self.last_question >= datetime.timedelta(seconds=12)):
             # get question if database loaded
             if self.jservice:
-                while True:
+                getting_question = True
+                while getting_question:
                     r = requests.get('http://jservice.io/api/random')
                     self.question = r.json()[0]
                     
                     self.format_question()
                     # check question isn't repeat of recent one.
-                    if self.question[''] not in self.recent_questions:
+                    if self.question['question'] not in self.recent_questions:
                         if len(self.recent_questions) > self.q_memory:
                             del self.recent_questions[0]
                         self.recent_questions.append(self.question['question'])
-                        break
+                        getting_question = False
             else:
                 r = requests.get('https://opentdb.com/api.php?amount=1&category=15&type=multiple&encode=base64')
                 resjson = r.json()['results'][0]
                 self.question = {}
                 self.question['question'] = base64.b64decode(resjson['question']).decode('utf-8')
                 self.question['answer'] = base64.b64decode(resjson['correct_answer']).decode('utf-8')
-
+                self.recent_questions.append(self.question)
             if len(self.question['answer']) == 0 or len(self.question['question']) <= 1 or 'href=' in self.question['answer'] or 'Which of these' in self.question['answer']:
                 self.question = None
                 return
