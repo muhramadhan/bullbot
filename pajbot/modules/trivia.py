@@ -367,8 +367,6 @@ class TriviaModule(BaseModule):
                     if self.winstreak[1] >= self.min_streak:
                         self.bot.safe_me('{} is on a {} streak of correct answers PogU'.format(
                             *self.winstreak))
-                        self.bot.safe_me('{} is on a {} answer streak PogU '.format(
-                            *self.winstreak))
 
     def load_commands(self, **options):
         self.commands['trivia'] = pajbot.models.command.Command.multiaction_command(
@@ -397,7 +395,7 @@ class TriviaModule(BaseModule):
 	                delay_all=0,
 	                delay_user=0,
 	                can_execute_with_whisper=True,
-                        ),
+                        )
                     }
                 )
 
