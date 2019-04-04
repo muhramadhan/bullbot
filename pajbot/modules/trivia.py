@@ -197,7 +197,7 @@ class TriviaModule(BaseModule):
         ########################################################################
         # Is it time for the next step?
         
-        if self.last_step is None or (datetime.datetime.now() - self.last_step >= datetime.timedelta(seconds=self.settings['step_delay']):
+        if self.last_step is None or ((datetime.datetime.now() - self.last_step) >= datetime.timedelta(seconds=self.settings['step_delay'])):
             self.last_step = datetime.datetime.now()
             self.step += 1
 
@@ -211,9 +211,9 @@ class TriviaModule(BaseModule):
     def step_announce(self):
         try:
             if self.jservice:
-                self.bot.me('PogChamp A new question has begun! In the category "{0[category][title]}", the question/hint/clue is "{0[question]}" Bruh'.format(self.question))
+                self.bot.safe_me('PogChamp A new question has begun! In the category "{0[category][title]}", the question/hint/clue is "{0[question]}" Bruh'.format(self.question))
             else:
-                self.bot.me('PogChamp A new question has begun! The question is: "{0[question]}"'.format(self.question))
+                self.bot.safe_me('PogChamp A new question has begun! The question is: "{0[question]}"'.format(self.question))
         except:
             self.step = 0
             self.question = None
@@ -240,11 +240,11 @@ class TriviaModule(BaseModule):
             copy_str += hint_str[1:]
             hint_str = copy_str
 
-        self.bot.me('OpieOP Here\'s a hint, "{hint_str}" OpieOP'.format(hint_str=hint_str))
+        self.bot.safe_me('OpieOP Here\'s a hint, "{hint_str}" OpieOP'.format(hint_str=hint_str))
 
     def step_end(self):
         if self.question is not None:
-            self.bot.me('MingLee No one could answer the trivia! The answer was "{}" MingLee. Since you\'re all useless, DatGuy gets one point.'.format(self.question['answer']))
+            self.bot.safe_me('MingLee No one could answer the trivia! The answer was "{}" MingLee. Since you\'re all useless, DatGuy gets one point.'.format(self.question['answer']))
             self.question = None
             self.step = 0
             self.last_question = datetime.datetime.now()
@@ -276,9 +276,9 @@ class TriviaModule(BaseModule):
             self.point_bounty = self.settings['default_point_bounty']
 
         if self.point_bounty > 0:
-            self.bot.me('The trivia has started! {} points for each right answer!'.format(self.point_bounty))
+            self.bot.safe_me('The trivia has started! {} points for each right answer!'.format(self.point_bounty))
         else:
-            self.bot.me('The trivia has started!')
+            self.bot.safe_me('The trivia has started!')
 
         HandlerManager.add_handler('on_message', self.on_message)
 
@@ -293,7 +293,7 @@ class TriviaModule(BaseModule):
         for player, correct in c.most_common(5):
             stopOutput += f'{player}, with {correct} correct guesses. '
 
-        self.bot.me(stopOutput)
+        self.bot.safe_me(stopOutput)
         self.correct_dict = {}
 
         HandlerManager.remove_handler('on_message', self.on_message)
@@ -324,6 +324,14 @@ class TriviaModule(BaseModule):
         self.stop_trivia()
         self.checkPaused = True
         self.checkjob.pause()
+        
+    def command_skip(self, **options):
+	if self.question is None:
+	    options['bot'].say('There is currently no question.')
+	else:
+	    self.question = None
+	    self.step = 0
+	    self.last_question = None
 
     def on_message(self, source, message, emotes, whisper, urls, event):
         if message is None:
@@ -340,10 +348,10 @@ class TriviaModule(BaseModule):
 
             if correct:
                 if self.point_bounty > 0:
-                    self.bot.me('{} got the answer right! The answer was {} FeelsGoodMan They get {} points! PogChamp'.format(source.username_raw, self.question['answer'], self.point_bounty))
+                    self.bot.safe_me('{} got the answer right! The answer was {} FeelsGoodMan They get {} points! PogChamp'.format(source.username_raw, self.question['answer'], self.point_bounty))
                     source.points += self.point_bounty
                 else:
-                    self.bot.me('{} got the answer right! The answer was {} FeelsGoodMan'.format(source.username_raw, self.question['answer']))
+                    self.bot.safe_me('{} got the answer right! The answer was {} FeelsGoodMan'.format(source.username_raw, self.question['answer']))
 
                 self.question = None
                 self.step = 0
@@ -357,9 +365,9 @@ class TriviaModule(BaseModule):
                 else:
                     self.winstreak[1] += 1
                     if self.winstreak[1] >= self.min_streak:
-                        self.bot.me('{} is on a {} streak of correct answers PogU'.format(
+                        self.bot.safe_me('{} is on a {} streak of correct answers PogU'.format(
                             *self.winstreak))
-                        self.bot.me('{} is on a {} answer streak PogU '.format(
+                        self.bot.safe_me('{} is on a {} answer streak PogU '.format(
                             *self.winstreak))
 
     def load_commands(self, **options):
@@ -382,6 +390,13 @@ class TriviaModule(BaseModule):
                         delay_all=0,
                         delay_user=0,
                         can_execute_with_whisper=True,
+                        ),
+                    'skip': pajbot.models.command.Command.raw_command(
+	                self.command_skip,
+	                level=500,
+	                delay_all=0,
+	                delay_user=0,
+	                can_execute_with_whisper=True,
                         ),
                     }
                 )
