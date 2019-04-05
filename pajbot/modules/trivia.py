@@ -2,6 +2,7 @@ import base64
 import datetime
 import logging
 import math
+import random
 
 import Levenshtein
 import requests
@@ -83,6 +84,10 @@ class TriviaModule(BaseModule):
                               'History', 'Geography', 'Gachimuchi', 'Gachi',
                               'Emotes', 'Bees', 'Country', 'Books']
         
+        self.bad_phrases = ['href=',   # bad phrases for questions
+                            'Which of these',
+                            'Which one of these',
+                            'Which of the following']
         self.recent_questions = list() # List of most recent questions
         self.q_memory = 200            # No. of recent questions to remember
         self.winstreak = [None,None]   # Stored winstreak [user name, winstreak]
@@ -104,12 +109,8 @@ class TriviaModule(BaseModule):
         if self.question['answer'].lower().startswith('the '):
             self.question['answer'] = self.question['answer'].replace('the ', '')
                     
-    ############################################################################        
-    ############################################################################
-    
+      
     def poll_trivia(self):
-        ########################################################################
-        ########################################################################
         # Check if new question needed
         if self.question is None and \
         ( self.last_question is None \
@@ -127,7 +128,9 @@ class TriviaModule(BaseModule):
                     self.question = r.json()[0]
 
                     # check question isn't repeat of recent one.
-                    if self.question['question'] not in self.recent_questions:
+                    if self.question['question'] not in self.recent_questions and \
+                       self.question['answer'] and self.question['question'] and \
+                       not any([b in self.question['answer'] for b in self.bad_phrases]):
                         self.format_question()
                         self.recent_questions.append(self.question['question'])
                         new_question = True
@@ -144,7 +147,7 @@ class TriviaModule(BaseModule):
                         try:
                             resjson = r.json()['results'][0]
                         except:
-                            return
+                            continue
 
                         self.question = {}
                         self.question['question'] = base64.b64decode(resjson['question']).decode('utf-8')
@@ -159,7 +162,10 @@ class TriviaModule(BaseModule):
                         self.question['answer'] = self.question['answer'].strip()
                         self.question['category'] = base64.b64decode(resjson['category']).decode('utf-8')
                         # check question isn't repeat of recent one.
-                        if self.question['question'] not in self.recent_questions:
+                        
+                        if self.question['question'] not in self.recent_questions and \
+                           self.question['answer'] and self.question['question'] and \
+                           not any([b in self.question['answer'] for b in self.bad_phrases]):
                             self.recent_questions.append(self.question['question'])
                             new_question = True
                 else: # load gazatu
@@ -173,7 +179,9 @@ class TriviaModule(BaseModule):
                             self.question = None
                             return
                         self.question = resjson
-                        if self.question['question'] not in self.recent_questions:
+                        if self.question['question'] not in self.recent_questions and \
+                           self.question['answer'] and self.question['question'] and \
+                           not any([b in self.question['answer'] for b in self.bad_phrases]):
                             self.recent_questions.append(self.question['question'])
                             self.question['category'] = self.question['category'].replace('_', ' ')
                             new_question = True
@@ -181,14 +189,8 @@ class TriviaModule(BaseModule):
             # Remove oldest question
             if len(self.recent_questions) > self.q_memory:
                 del self.recent_questions[0]
-                
-            if not self.question['answer'] or not self.question['question'] or \
-               'href=' in self.question['answer'] or \
-               'Which of these' in self.question['question'] or \
-               'Which one of these' in self.question['question'] or \
-               'Which of the following' in self.question['question']):
-                self.question = None
-                return
+
+
 
             self.step = 0
             self.last_step = None
@@ -213,7 +215,7 @@ class TriviaModule(BaseModule):
             if self.jservice:
                 self.bot.safe_me('PogChamp A new question has begun! In the category "{0[category][title]}", the question/hint/clue is "{0[question]}" Bruh'.format(self.question))
             else:
-                self.bot.safe_me('PogChamp A new question has begun! The question is: "{0[question]}"'.format(self.question))
+                self.bot.safe_me('PogChamp A new question has begun! In the category "{0[category]}", the question/hint/clue is "{0[question]}" Bruh'.format(self.question))
         except:
             self.step = 0
             self.question = None
