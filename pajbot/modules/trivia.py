@@ -147,10 +147,9 @@ class TriviaModule(BaseModule):
                     # Load from gazatu and RTD
                     chosenInt = random.randint(0, 10)
                     if chosenInt <= 5:
-                        while not new_question:
-                            r = requests.get('http://159.203.60.127/questions?limit=1')
-                            self.question = r.json()
-                            self.check_question()
+                        r = requests.get('http://159.203.60.127/questions?limit=1')
+                        self.question = r.json()
+                        self.check_question()
                     else:
                         self.gazatuService = True
 			r = requests.get('https://api.gazatu.xyz/trivia/questions?count=1&include=[{}]'.format(','.join(self.gazCategories)))
