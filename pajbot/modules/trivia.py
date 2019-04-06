@@ -3,7 +3,6 @@ import datetime
 import logging
 import math
 import random
-#import unidecode
 
 import Levenshtein
 import requests
@@ -86,7 +85,7 @@ class TriviaModule(BaseModule):
                               'Emotes', 'Bees', 'Country', 'Books',
                               'AdmiralBulldog', 'D DansGame TA', 'Country',
                               'HTTP']
-                              #'Jokes', # removed jokes because answers are long
+
         self.bad_phrases = ['href=',   # bad phrases for questions
                             'Which of these',
                             'Which one of these',
@@ -113,14 +112,11 @@ class TriviaModule(BaseModule):
             
         if self.question['answer'].lower().startswith('the '):
             self.question['answer'] = self.question['answer'].replace('the ','')
-        # Remove spanish/german/continental letters, mainly for short answers
-        ##self.question['answer'] = unidecode.unidecode(self.question['answer'])
+	
     def check_question(self):
-        # Move all code for checking if question is new in here to tidy up
-
         if self.question['question'] not in self.recent_questions and \
            self.question['answer'] and self.question['question'] and \
-           not any([b in self.question['answer'] for b in self.bad_phrases]):
+           not any(b in self.question['answer'] for b in self.bad_phrases):
             self.format_answer()
             try:
                 self.question['category'] = self.question['category'].replace('_', ' ')
@@ -148,41 +144,16 @@ class TriviaModule(BaseModule):
                     self.check_question()
        
                 else:
-                    # Load from gazatu and opentdb
+                    # Load from gazatu and RTD
                     chosenInt = random.randint(0, 10)
-                    
-                    if chosenInt < 3: # load opentdb
-                        self.gazatuService = True
-                        category = random.choice([9, 11, 15, 17, 18, 20, 21, 22, 23,
-                                              24, 26, 27, 29, 30])
-                        r = requests.get('https://opentdb.com/api.php?amount=1&category={}&type=multiple&encode=base64'.format(category))
-                        try:
-                            resjson = r.json()['results'][0]
-                        except:
-                            continue
-                        self.question = {}
-                        self.question['question'] = base64.b64decode(resjson['question']).decode('utf-8')
-                        # Should take care of answers like 'eighteen,' etc.
-                        startAnswer = base64.b64decode(resjson['correct_answer']).decode('utf-8')
-                        try:
-                            self.question['answer'] = str(w2n.word_to_num(startAnswer))
-                        except ValueError:
-                            self.question['answer'] = startAnswer
-                        self.question['answer'] = self.question['answer'].strip()
-                        self.question['category'] = base64.b64decode(resjson['category']).decode('utf-8')
-                        self.check_question()
-                        
-                    elif chosenInt <6:
+                    if chosenInt <= 5:
                         while not new_question:
                             r = requests.get('http://159.203.60.127/questions?limit=1')
                             self.question = r.json()
                             self.check_question()
-                        
-                    else: # load gazatu
+                    else:
                         self.gazatuService = True
-                        # category = random.choice(self.gazCategories)
-                        # r = requests.get('https://api.gazatu.xyz/trivia/questions?count=1&include=[{}]'.format(category)) # Can do ','.join(categories) but this way it's more varied
-                        r = requests.get('https://api.gazatu.xyz/trivia/questions?count=1&include=[{}]'.format(','.join(self.gazCategories)))
+			r = requests.get('https://api.gazatu.xyz/trivia/questions?count=1&include=[{}]'.format(','.join(self.gazCategories)))
                         resjson = r.json()[0]
                         if resjson['disabled']:
                             self.question = None
@@ -197,8 +168,6 @@ class TriviaModule(BaseModule):
             self.step = 0
             self.last_step = None
 
-        ########################################################################
-        ########################################################################
         # Is it time for the next step?
         
         if self.last_step is None or ((datetime.datetime.now() - self.last_step) >= datetime.timedelta(seconds=self.settings['step_delay'])):
