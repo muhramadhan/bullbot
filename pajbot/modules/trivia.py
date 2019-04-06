@@ -3,6 +3,7 @@ import datetime
 import logging
 import math
 import random
+#import unidecode
 
 import Levenshtein
 import requests
@@ -55,8 +56,8 @@ class TriviaModule(BaseModule):
                 default=0,
                 constraints={
                     'min_value': 0,
-                    'max_value': 1000,
-                    }),
+                    'max_value': 1000,                  
+                }),
             ]
 
     def __init__(self):
@@ -79,11 +80,13 @@ class TriviaModule(BaseModule):
         
         self.gazCategories = ['W_OMEGALUL_W', 'Vietnam', 'Video_Games',
                               'Video Games', 'Twitch', 'Sports', 'Spongebob',
-                              'Jokes', 'Science', 'Programming', 'Music',
+                              'Science', 'Programming', 'Music',
                               'Memes', 'Math', 'Maths', 'Movies', 'Languages',
                               'History', 'Geography', 'Gachimuchi', 'Gachi',
-                              'Emotes', 'Bees', 'Country', 'Books']
-        
+                              'Emotes', 'Bees', 'Country', 'Books',
+                              'AdmiralBulldog', 'D DansGame TA', 'Country',
+                              'HTTP']
+                              #'Jokes', # removed jokes because answers are long
         self.bad_phrases = ['href=',   # bad phrases for questions
                             'Which of these',
                             'Which one of these',
@@ -96,20 +99,37 @@ class TriviaModule(BaseModule):
 
         self.point_bounty = 0
         
-    def format_question(self):
-        self.question['answer'] = self.question['answer'].replace('<i>', '').replace('</i>', '').replace('\\', '').replace('(', '').replace(')', '')
+    def format_answer(self):
+        self.question['answer'] = self.question['answer'].replace(
+            '<i>', '').replace('</i>', '').replace('\\', '').replace(
+                '(', '').replace(')', '').replace('<b>','').replace('</b>','')
         self.question['answer'] = self.question['answer'].strip('"').strip('.')
 
-        if self.question['answer'].startswith('a '):
+        if self.question['answer'].lower().startswith('a '):
             self.question['answer'] = self.question['answer'].replace('a ', '')
             
-        elif self.question['answer'].startswith('an '):
+        elif self.question['answer'].lower().startswith('an '):
             self.question['answer'] = self.question['answer'].replace('an ', '')
             
         if self.question['answer'].lower().startswith('the '):
-            self.question['answer'] = self.question['answer'].replace('the ', '')
-                    
-      
+            self.question['answer'] = self.question['answer'].replace('the ','')
+        # Remove spanish/german/continental letters, mainly for short answers
+        ##self.question['answer'] = unidecode.unidecode(self.question['answer'])
+    def check_question(self):
+        # Move all code for checking if question is new in here to tidy up
+
+        if self.question['question'] not in self.recent_questions and \
+           self.question['answer'] and self.question['question'] and \
+           not any([b in self.question['answer'] for b in self.bad_phrases]):
+            self.format_answer()
+            try:
+                self.question['category'] = self.question['category'].replace('_', ' ')
+            except KeyError:
+                self.question['category'] = self.question['categories'][0].replace('_',' ')
+            self.recent_questions.append(self.question['question'])
+
+            self.new_question = True
+            
     def poll_trivia(self):
         # Check if new question needed
         if self.question is None and \
@@ -119,78 +139,60 @@ class TriviaModule(BaseModule):
 
             # GET TRIVIA QUESTION
 
-            new_question = False
-            if self.jservice:
-                # Load from jservice database
-
-                while not new_question:
+            self.new_question = False
+            while not self.new_question:
+                if self.jservice:
+                    # Load from jservice database
                     r = requests.get('http://jservice.io/api/random')
                     self.question = r.json()[0]
-
-                    # check question isn't repeat of recent one.
-                    if self.question['question'] not in self.recent_questions and \
-                       self.question['answer'] and self.question['question'] and \
-                       not any([b in self.question['answer'] for b in self.bad_phrases]):
-                        self.format_question()
-                        self.recent_questions.append(self.question['question'])
-                        new_question = True
-
-            else:
-                # Load from gazatu and opentdb
-                chosenInt = random.randint(0, 10)
-                if chosenInt < 3: # load opentdb
-                    self.gazatuService = True
-                    category = random.choice([9, 11, 15, 17, 18, 20, 21, 22, 23,
+                    self.check_question()
+       
+                else:
+                    # Load from gazatu and opentdb
+                    chosenInt = random.randint(0, 10)
+                    
+                    if chosenInt < 3: # load opentdb
+                        self.gazatuService = True
+                        category = random.choice([9, 11, 15, 17, 18, 20, 21, 22, 23,
                                               24, 26, 27, 29, 30])
-                    while not new_question:                                       
                         r = requests.get('https://opentdb.com/api.php?amount=1&category={}&type=multiple&encode=base64'.format(category))
                         try:
                             resjson = r.json()['results'][0]
                         except:
                             continue
-
                         self.question = {}
                         self.question['question'] = base64.b64decode(resjson['question']).decode('utf-8')
-
                         # Should take care of answers like 'eighteen,' etc.
                         startAnswer = base64.b64decode(resjson['correct_answer']).decode('utf-8')
                         try:
                             self.question['answer'] = str(w2n.word_to_num(startAnswer))
                         except ValueError:
                             self.question['answer'] = startAnswer
-
                         self.question['answer'] = self.question['answer'].strip()
                         self.question['category'] = base64.b64decode(resjson['category']).decode('utf-8')
-                        # check question isn't repeat of recent one.
+                        self.check_question()
                         
-                        if self.question['question'] not in self.recent_questions and \
-                           self.question['answer'] and self.question['question'] and \
-                           not any([b in self.question['answer'] for b in self.bad_phrases]):
-                            self.recent_questions.append(self.question['question'])
-                            new_question = True
-                else: # load gazatu
-                    self.gazatuService = True
-                    # category = random.choice(self.gazCategories)
-                    # r = requests.get('https://api.gazatu.xyz/trivia/questions?count=1&include=[{}]'.format(category)) # Can do ','.join(categories) but this way it's more varied
-                    while not new_question:
+                    elif chosenInt <6:
+                        while not new_question:
+                            r = requests.get('http://159.203.60.127/questions?limit=1')
+                            self.question = r.json()
+                            self.check_question()
+                        
+                    else: # load gazatu
+                        self.gazatuService = True
+                        # category = random.choice(self.gazCategories)
+                        # r = requests.get('https://api.gazatu.xyz/trivia/questions?count=1&include=[{}]'.format(category)) # Can do ','.join(categories) but this way it's more varied
                         r = requests.get('https://api.gazatu.xyz/trivia/questions?count=1&include=[{}]'.format(','.join(self.gazCategories)))
                         resjson = r.json()[0]
                         if resjson['disabled']:
                             self.question = None
-                            return
+                            continue
                         self.question = resjson
-                        if self.question['question'] not in self.recent_questions and \
-                           self.question['answer'] and self.question['question'] and \
-                           not any([b in self.question['answer'] for b in self.bad_phrases]):
-                            self.recent_questions.append(self.question['question'])
-                            self.question['category'] = self.question['category'].replace('_', ' ')
-                            new_question = True
-                            
+                        self.check_question()
+                    
             # Remove oldest question
             if len(self.recent_questions) > self.q_memory:
                 del self.recent_questions[0]
-
-
 
             self.step = 0
             self.last_step = None
@@ -366,7 +368,10 @@ class TriviaModule(BaseModule):
                     self.winstreak = [source.username_raw, 1]
                 else:
                     self.winstreak[1] += 1
-                    if self.winstreak[1] >= self.min_streak:
+                    if self.winstreak[1] >= 20:
+                        self.bot.safe_me('{} is on a {} question streak, get a life... FeelsWeirdMan'.format(
+                            *self.winstreak))
+                    elif self.winstreak[1] >= self.min_streak:
                         self.bot.safe_me('{} is on a {} streak of correct answers PogU'.format(
                             *self.winstreak))
 
