@@ -2,12 +2,11 @@ import base64
 import datetime
 import logging
 import math
+import random
 
 import Levenshtein
 import requests
-import random
 from collections import Counter
-from word2number import w2n
 
 import pajbot.models
 from pajbot.managers.db import DBManager
@@ -56,8 +55,8 @@ class TriviaModule(BaseModule):
                 default=0,
                 constraints={
                     'min_value': 0,
-                    'max_value': 1000,
-                    }),
+                    'max_value': 1000,                  
+                }),
             ]
 
     def __init__(self):
@@ -77,75 +76,98 @@ class TriviaModule(BaseModule):
         self.step = 0
         self.last_step = None
         self.correct_dict = {}
-        self.gazCategories = ['W_OMEGALUL_W', 'Vietnam', 'Video_Games', 'Video Games', 'Twitch', 'Sports', 'Spongebob', 'Jokes', 'Science', 'Programming', 'Music', 'Memes', 'Math', 'Maths', 'Movies', 'Languages', 'History', 'HTTP', 'Geography', 'Gachimuchi', 'Gachi', 'Emotes', 'Bees', 'Country', 'Books', 'D DansGame TA', 'AdmiralBulldog']
 
+        self.gazCategories = ['W_OMEGALUL_W', 'Vietnam', 'Video_Games',
+                              'Video Games', 'Twitch', 'Sports', 'Spongebob',
+                              'Science', 'Programming', 'Music',
+                              'Memes', 'Math', 'Maths', 'Movies', 'Languages',
+                              'History', 'Geography', 'Gachimuchi', 'Gachi',
+                              'Emotes', 'Bees', 'Country', 'Books',
+                              'AdmiralBulldog', 'D DansGame TA', 'Country',
+                              'HTTP']
+
+        self.bad_phrases = ['href=',   # bad phrases for questions
+                            'Which of these',
+                            'Which one of these',
+                            'Which of the following']
+        self.recent_questions = list() # List of most recent questions
+        self.q_memory = 200            # No. of recent questions to remember
+        self.winstreak = [None,None]   # Stored winstreak [user name, winstreak]
+        self.min_streak = 3            # minimum correct answers for a streak 
         self.point_bounty = 0
-
-    def format_question(self):
-        self.question['answer'] = self.question['answer'].replace('<i>', '').replace('</i>', '').replace('\\', '').replace('(', '').replace(')', '')
+        
+    def format_answer(self):
+        self.question['answer'] = self.question['answer'].replace(
+            '<i>', '').replace('</i>', '').replace('\\', '').replace(
+                '(', '').replace(')', '').replace('<b>','').replace('</b>','')
         self.question['answer'] = self.question['answer'].strip('"').strip('.')
 
-        if self.question['answer'].startswith('a '):
+        if self.question['answer'].lower().startswith('a '):
             self.question['answer'] = self.question['answer'].replace('a ', '')
-        elif self.question['answer'].startswith('an '):
+            
+        elif self.question['answer'].lower().startswith('an '):
             self.question['answer'] = self.question['answer'].replace('an ', '')
+            
         if self.question['answer'].lower().startswith('the '):
-            self.question['answer'] = self.question['answer'][3:]
+            self.question['answer'] = self.question['answer'].replace('the ','')
+	
+    def check_question(self):
+        if self.question['question'] not in self.recent_questions and \
+           self.question['answer'] and self.question['question'] and \
+           not any(b in self.question['answer'] for b in self.bad_phrases):
+            self.format_answer()
+            try:
+                self.question['category'] = self.question['category'].replace('_', ' ')
+            except KeyError:
+                self.question['category'] = self.question['categories'][0].replace('_',' ')
+            self.recent_questions.append(self.question['question'])
 
+            self.new_question = True
+            
     def poll_trivia(self):
-        if self.question is None and (self.last_question is None or datetime.datetime.now() - self.last_question >= datetime.timedelta(seconds=11)):
-            if self.jservice:
-                r = requests.get('http://jservice.io/api/random')
-                self.question = r.json()[0]
-                self.format_question()
-            else:
-                chosenInt = random.randint(0, 10)
-                if chosenInt < 3:
-                    self.gazatuService = False
-                    category = random.choice([9, 11, 15, 17, 18, 20, 21, 22, 23, 24, 26, 27, 29, 30])
-                    r = requests.get('https://opentdb.com/api.php?amount=1&category={}&type=multiple&encode=base64'.format(category))
-                    try:
-                        resjson = r.json()['results'][0]
-                    except:
-                        return
+        # Check if new question needed
+        if self.question is None and \
+        ( self.last_question is None \
+          or (datetime.datetime.now() - self.last_question) \
+          >= datetime.timedelta(seconds=11) ):
 
-                    self.question = {}
-                    self.question['question'] = base64.b64decode(resjson['question']).decode('utf-8')
+            # GET TRIVIA QUESTION
 
-                    # Should take care of answers like 'eighteen,' etc.
-                    startAnswer = base64.b64decode(resjson['correct_answer']).decode('utf-8')
-                    try:
-                        self.question['answer'] = str(w2n.word_to_num(startAnswer))
-                    except ValueError:
-                        self.question['answer'] = startAnswer
-                    self.question['category'] = base64.b64decode(resjson['category']).decode('utf-8')
+            self.new_question = False
+            while not self.new_question:
+                if self.jservice:
+                    # Load from jservice database
+                    r = requests.get('http://jservice.io/api/random')
+                    self.question = r.json()[0]
+                    self.check_question()
+       
                 else:
-                    self.gazatuService = True
-                    r = requests.get('https://api.gazatu.xyz/trivia/questions?count=1&include=[{}]'.format(','.join(self.gazCategories)))
-                    resjson = r.json()[0]
-                    if resjson['disabled']:
-                        self.question = None
-                        return
-
-                    self.question = resjson
-                    self.question['category'] = self.question['category'].replace('_', ' ')
-                    self.format_question()
-
-            self.question['answer'] = self.question['answer'].strip()
-
-            ## FIXME: Cleanup this bullshit
-            if (len(self.question['answer']) == 0 or len(self.question['question']) <= 1 or 'href=' in self.question['answer']
-                or 'Which of these' in self.question['question'] or 'Which one of these' in self.question['question']
-                or 'Which of the following' in self.question['question']):
-
-                self.question = None
-                return
+                    # Load from gazatu and RTD
+                    chosenInt = random.randint(0, 10)
+                    if chosenInt <= 5:
+                        r = requests.get('http://159.203.60.127/questions?limit=1')
+                        self.question = r.json()
+                        self.check_question()
+                    else:
+                        self.gazatuService = True
+			r = requests.get('https://api.gazatu.xyz/trivia/questions?count=1&include=[{}]'.format(','.join(self.gazCategories)))
+                        resjson = r.json()[0]
+                        if resjson['disabled']:
+                            self.question = None
+                            continue
+                        self.question = resjson
+                        self.check_question()
+                    
+            # Remove oldest question
+            if len(self.recent_questions) > self.q_memory:
+                del self.recent_questions[0]
 
             self.step = 0
             self.last_step = None
 
         # Is it time for the next step?
-        if self.last_step is None or datetime.datetime.now() - self.last_step >= datetime.timedelta(seconds=self.settings['step_delay']):
+        
+        if self.last_step is None or ((datetime.datetime.now() - self.last_step) >= datetime.timedelta(seconds=self.settings['step_delay'])):
             self.last_step = datetime.datetime.now()
             self.step += 1
 
@@ -161,7 +183,7 @@ class TriviaModule(BaseModule):
             if self.jservice:
                 self.bot.safe_me('PogChamp A new question has begun! In the category "{0[category][title]}", the question/hint/clue is "{0[question]}" Bruh'.format(self.question))
             else:
-                self.bot.safe_me('PogChamp A new question has begun! In the category "{0[category]}", the question is: "{0[question]}"'.format(self.question))
+                self.bot.safe_me('PogChamp A new question has begun! In the category "{0[category]}", the question/hint/clue is "{0[question]}" Bruh'.format(self.question))
         except:
             self.step = 0
             self.question = None
@@ -224,9 +246,9 @@ class TriviaModule(BaseModule):
             self.point_bounty = self.settings['default_point_bounty']
 
         if self.point_bounty > 0:
-            self.bot.me('The trivia has started! {} points for each right answer!'.format(self.point_bounty))
+            self.bot.safe_me('The trivia has started! {} points for each right answer!'.format(self.point_bounty))
         else:
-            self.bot.me('The trivia has started!')
+            self.bot.safe_me('The trivia has started!')
 
         HandlerManager.add_handler('on_message', self.on_message)
 
@@ -272,14 +294,14 @@ class TriviaModule(BaseModule):
         self.stop_trivia()
         self.checkPaused = True
         self.checkjob.pause()
-
+        
     def command_skip(self, **options):
-        if self.question is None:
-            options['bot'].say('There is no question currently.')
-        else:
-            self.question = None
-            self.step = 0
-            self.last_question = None
+	if self.question is None:
+	    options['bot'].say('There is currently no question.')
+	else:
+	    self.question = None
+	    self.step = 0
+	    self.last_question = None
 
     def on_message(self, source, message, emotes, whisper, urls, event):
         if message is None:
@@ -305,7 +327,19 @@ class TriviaModule(BaseModule):
                 self.step = 0
                 self.last_question = datetime.datetime.now()
                 self.correct_dict[source.username_raw] = self.correct_dict.get(source.username_raw, 0) + 1
+                                      
+                # record winstreak of correct answers for user
 
+                if source.username_raw != self.winstreak[0]:
+                    self.winstreak = [source.username_raw, 1]
+                else:
+                    self.winstreak[1] += 1
+                    if self.winstreak[1] >= 20:
+                        self.bot.safe_me('{} is on a {} question streak, get a life... FeelsWeirdMan'.format(
+                            *self.winstreak))
+                    elif self.winstreak[1] >= self.min_streak:
+                        self.bot.safe_me('{} is on a {} streak of correct answers PogU'.format(
+                            *self.winstreak))
 
     def load_commands(self, **options):
         self.commands['trivia'] = pajbot.models.command.Command.multiaction_command(
@@ -329,11 +363,11 @@ class TriviaModule(BaseModule):
                         can_execute_with_whisper=True,
                         ),
                     'skip': pajbot.models.command.Command.raw_command(
-                        self.command_skip,
-                        level=500,
-                        delay_all=0,
-                        delay_user=0,
-                        can_execute_with_whisper=True,
+	                self.command_skip,
+	                level=500,
+	                delay_all=0,
+	                delay_user=0,
+	                can_execute_with_whisper=True,
                         )
                     }
                 )
