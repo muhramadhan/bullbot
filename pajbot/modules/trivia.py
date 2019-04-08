@@ -339,16 +339,16 @@ class TriviaModule(BaseModule):
                     sendMessage = '{} got the answer right! The answer was {} FeelsGoodMan'.format(
                         source.username_raw, self.question['answer'])
 
-                self.question=None
-                self.step=0
-                self.last_question=datetime.datetime.now()
-                self.correct_dict[source.username_raw]=self.correct_dict.get(
+                self.question = None
+                self.step = 0
+                self.last_question = datetime.datetime.now()
+                self.correct_dict[source.username_raw] = self.correct_dict.get(
                     source.username_raw, 0) + 1
 
                 # record winstreak of correct answers for user
 
                 if source.username_raw != self.winstreak[0]:
-                    self.winstreak=[source.username_raw, 1]
+                    self.winstreak = [source.username_raw, 1]
                 else:
                     self.winstreak[1] += 1
                     if self.winstreak[1] >= 12:
@@ -361,7 +361,7 @@ class TriviaModule(BaseModule):
                 self.bot.safe_me(sendMessage)
 
     def load_commands(self, **options):
-        self.commands['trivia']=pajbot.models.command.Command.multiaction_command(
+        self.commands['trivia'] = pajbot.models.command.Command.multiaction_command(
             level=100,
             delay_all=0,
             delay_user=0,
@@ -392,10 +392,10 @@ class TriviaModule(BaseModule):
         )
 
     def enable(self, bot):
-        self.bot=bot
+        self.bot = bot
         self.checkjob.resume()
-        self.checkPaused=False
+        self.checkPaused = False
 
     def disable(self, bot):
         self.checkjob.pause()
-        self.checkPaused=True
+        self.checkPaused = True
