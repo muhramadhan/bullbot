@@ -3,17 +3,16 @@ import datetime
 import logging
 import math
 import random
-
-import Levenshtein
-import requests
 from collections import Counter
+
+import requests
+import Levenshtein
 
 import pajbot.models
 from pajbot.managers.db import DBManager
 from pajbot.managers.handler import HandlerManager
 from pajbot.managers.schedule import ScheduleManager
-from pajbot.modules import BaseModule
-from pajbot.modules import ModuleSetting
+from pajbot.modules import BaseModule, ModuleSetting
 
 log = logging.getLogger(__name__)
 
@@ -25,39 +24,39 @@ class TriviaModule(BaseModule):
     DESCRIPTION = 'Trivia!'
     CATEGORY = 'Game'
     SETTINGS = [
-            ModuleSetting(
-                key='hint_count',
-                label='How many hints the user should get before the question is ruined.',
-                type='number',
-                required=True,
-                default=2,
-                constraints={
-                    'min_value': 0,
-                    'max_value': 4,
-                    }),
-            ModuleSetting(
-                key='step_delay',
-                label='Time between each step (step_delay*(hint_count+1) = length of each question)',
-                type='number',
-                required=True,
-                placeholder='',
-                default=10,
-                constraints={
-                    'min_value': 5,
-                    'max_value': 45,
-                    }),
-            ModuleSetting(
-                key='default_point_bounty',
-                label='Default point bounty per right answer',
-                type='number',
-                required=True,
-                placeholder='',
-                default=0,
-                constraints={
-                    'min_value': 0,
-                    'max_value': 1000,                  
-                }),
-            ]
+        ModuleSetting(
+            key='hint_count',
+            label='How many hints the user should get before the question is ruined.',
+            type='number',
+            required=True,
+            default=2,
+            constraints={
+                'min_value': 0,
+                'max_value': 4,
+            }),
+        ModuleSetting(
+            key='step_delay',
+            label='Time between each step (step_delay*(hint_count+1) = length of each question)',
+            type='number',
+            required=True,
+            placeholder='',
+            default=10,
+            constraints={
+                'min_value': 5,
+                'max_value': 45,
+            }),
+        ModuleSetting(
+            key='default_point_bounty',
+            label='Default point bounty per right answer',
+            type='number',
+            required=True,
+            placeholder='',
+            default=0,
+            constraints={
+                'min_value': 0,
+                'max_value': 1000,
+            }),
+    ]
 
     def __init__(self):
         super().__init__()
@@ -90,46 +89,51 @@ class TriviaModule(BaseModule):
                             'Which of these',
                             'Which one of these',
                             'Which of the following']
-        self.recent_questions = list() # List of most recent questions
+        self.recent_questions = list()  # List of most recent questions
         self.q_memory = 200            # No. of recent questions to remember
-        self.winstreak = [None,None]   # Stored winstreak [user name, winstreak]
-        self.min_streak = 3            # minimum correct answers for a streak 
+        # Stored winstreak [user name, winstreak]
+        self.winstreak = [None, None]
+        self.min_streak = 3            # minimum correct answers for a streak
         self.point_bounty = 0
-        
+
     def format_answer(self):
         self.question['answer'] = self.question['answer'].replace(
             '<i>', '').replace('</i>', '').replace('\\', '').replace(
-                '(', '').replace(')', '').replace('<b>','').replace('</b>','')
+                '(', '').replace(')', '').replace('<b>', '').replace('</b>', '')
         self.question['answer'] = self.question['answer'].strip('"').strip('.')
 
         if self.question['answer'].lower().startswith('a '):
             self.question['answer'] = self.question['answer'].replace('a ', '')
-            
+
         elif self.question['answer'].lower().startswith('an '):
-            self.question['answer'] = self.question['answer'].replace('an ', '')
-            
+            self.question['answer'] = self.question['answer'].replace(
+                'an ', '')
+
         if self.question['answer'].lower().startswith('the '):
-            self.question['answer'] = self.question['answer'].replace('the ','')
-	
+            self.question['answer'] = self.question['answer'].replace(
+                'the ', '').replace('The ', '')
+
     def check_question(self):
         if self.question['question'] not in self.recent_questions and \
            self.question['answer'] and self.question['question'] and \
            not any(b in self.question['answer'] for b in self.bad_phrases):
             self.format_answer()
             try:
-                self.question['category'] = self.question['category'].replace('_', ' ')
+                self.question['category'] = self.question['category'].replace(
+                    '_', ' ')
             except KeyError:
-                self.question['category'] = self.question['categories'][0].replace('_',' ')
+                self.question['category'] = self.question['categories'][0].replace(
+                    '_', ' ')
             self.recent_questions.append(self.question['question'])
 
             self.new_question = True
-            
+
     def poll_trivia(self):
         # Check if new question needed
         if self.question is None and \
-        ( self.last_question is None \
-          or (datetime.datetime.now() - self.last_question) \
-          >= datetime.timedelta(seconds=11) ):
+            (self.last_question is None
+         or (datetime.datetime.now() - self.last_question)
+                >= datetime.timedelta(seconds=11)):
 
             # GET TRIVIA QUESTION
 
@@ -140,24 +144,27 @@ class TriviaModule(BaseModule):
                     r = requests.get('http://jservice.io/api/random')
                     self.question = r.json()[0]
                     self.check_question()
-       
+
                 else:
                     # Load from gazatu and RTD
                     chosenInt = random.randint(0, 10)
                     if chosenInt <= 5:
-                        r = requests.get('http://159.203.60.127/questions?limit=1')
+                        r = requests.get(
+                            'http://159.203.60.127/questions?limit=1')
                         self.question = r.json()
+                        self.question['category'][0] = self.question['category'][0].upper()
                         self.check_question()
                     else:
                         self.gazatuService = True
-			r = requests.get('https://api.gazatu.xyz/trivia/questions?count=1&include=[{}]'.format(','.join(self.gazCategories)))
+                        r = requests.get(
+                            'https://api.gazatu.xyz/trivia/questions?count=1&include=[{}]'.format(','.join(self.gazCategories)))
                         resjson = r.json()[0]
                         if resjson['disabled']:
                             self.question = None
                             continue
                         self.question = resjson
                         self.check_question()
-                    
+
             # Remove oldest question
             if len(self.recent_questions) > self.q_memory:
                 del self.recent_questions[0]
@@ -166,7 +173,7 @@ class TriviaModule(BaseModule):
             self.last_step = None
 
         # Is it time for the next step?
-        
+
         if self.last_step is None or ((datetime.datetime.now() - self.last_step) >= datetime.timedelta(seconds=self.settings['step_delay'])):
             self.last_step = datetime.datetime.now()
             self.step += 1
@@ -181,9 +188,11 @@ class TriviaModule(BaseModule):
     def step_announce(self):
         try:
             if self.jservice:
-                self.bot.safe_me('PogChamp A new question has begun! In the category "{0[category][title]}", the question/hint/clue is "{0[question]}" Bruh'.format(self.question))
+                self.bot.safe_me(
+                    'PogChamp A new question has begun! In the category "{0[category][title]}", the question/hint/clue is "{0[question]}" Bruh'.format(self.question))
             else:
-                self.bot.safe_me('PogChamp A new question has begun! In the category "{0[category]}", the question/hint/clue is "{0[question]}" Bruh'.format(self.question))
+                self.bot.safe_me(
+                    'PogChamp A new question has begun! In the category "{0[category]}", the question is "{0[question]}" Bruh'.format(self.question))
         except:
             self.step = 0
             self.question = None
@@ -192,7 +201,8 @@ class TriviaModule(BaseModule):
     def step_hint(self):
         # find out what % of the answer should be revealed
         full_hint_reveal = int(math.floor(len(self.question['answer']) / 2))
-        current_hint_reveal = int(math.floor(((self.step) / 2.2) * full_hint_reveal))
+        current_hint_reveal = int(math.floor(
+            ((self.step) / 2.2) * full_hint_reveal))
         hint_arr = []
         index = 0
         for c in self.question['answer']:
@@ -210,11 +220,13 @@ class TriviaModule(BaseModule):
             copy_str += hint_str[1:]
             hint_str = copy_str
 
-        self.bot.safe_me('OpieOP Here\'s a hint, "{hint_str}" OpieOP'.format(hint_str=hint_str))
+        self.bot.safe_me(
+            'OpieOP Here\'s a hint, "{hint_str}" OpieOP'.format(hint_str=hint_str))
 
     def step_end(self):
         if self.question is not None:
-            self.bot.safe_me('MingLee No one could answer the trivia! The answer was "{}" MingLee. Since you\'re all useless, DatGuy gets one point.'.format(self.question['answer']))
+            self.bot.safe_me('MingLee No one could answer the trivia! The answer was "{}" MingLee. Since you\'re all useless, DatGuy gets one point.'.format(
+                self.question['answer']))
             self.question = None
             self.step = 0
             self.last_question = datetime.datetime.now()
@@ -224,14 +236,14 @@ class TriviaModule(BaseModule):
 
     def check_run(self):
         if self.bot.is_online:
-             if self.trivia_running and not self.manualStart:
+            if self.trivia_running and not self.manualStart:
                 self.stop_trivia()
         else:
             if not self.trivia_running:
                 self.manualStart = False
                 self.start_trivia()
 
-    def start_trivia(self, message = None):
+    def start_trivia(self, message=None):
         if self.checkPaused and not self.manualStart:
             return
 
@@ -246,7 +258,8 @@ class TriviaModule(BaseModule):
             self.point_bounty = self.settings['default_point_bounty']
 
         if self.point_bounty > 0:
-            self.bot.safe_me('The trivia has started! {} points for each right answer!'.format(self.point_bounty))
+            self.bot.safe_me(
+                'The trivia has started! {} points for each right answer!'.format(self.point_bounty))
         else:
             self.bot.safe_me('The trivia has started!')
 
@@ -282,7 +295,6 @@ class TriviaModule(BaseModule):
         self.checkPaused = False
         self.checkjob.resume()
 
-
     def command_stop(self, **options):
         bot = options['bot']
         source = options['source']
@@ -294,14 +306,14 @@ class TriviaModule(BaseModule):
         self.stop_trivia()
         self.checkPaused = True
         self.checkjob.pause()
-        
+
     def command_skip(self, **options):
-	if self.question is None:
-	    options['bot'].say('There is currently no question.')
-	else:
-	    self.question = None
-	    self.step = 0
-	    self.last_question = None
+        if self.question is None:
+            options['bot'].say('There is currently no question.')
+        else:
+            self.question = None
+            self.step = 0
+            self.last_question = None
 
     def on_message(self, source, message, emotes, whisper, urls, event):
         if message is None:
@@ -318,16 +330,19 @@ class TriviaModule(BaseModule):
 
             if correct:
                 if self.point_bounty > 0:
-                    self.bot.safe_me('{} got the answer right! The answer was {} FeelsGoodMan They get {} points! PogChamp'.format(source.username_raw, self.question['answer'], self.point_bounty))
+                    self.bot.safe_me('{} got the answer right! The answer was {} FeelsGoodMan They get {} points! PogChamp'.format(
+                        source.username_raw, self.question['answer'], self.point_bounty))
                     source.points += self.point_bounty
                 else:
-                    self.bot.safe_me('{} got the answer right! The answer was {} FeelsGoodMan'.format(source.username_raw, self.question['answer']))
+                    self.bot.safe_me('{} got the answer right! The answer was {} FeelsGoodMan'.format(
+                        source.username_raw, self.question['answer']))
 
                 self.question = None
                 self.step = 0
                 self.last_question = datetime.datetime.now()
-                self.correct_dict[source.username_raw] = self.correct_dict.get(source.username_raw, 0) + 1
-                                      
+                self.correct_dict[source.username_raw] = self.correct_dict.get(
+                    source.username_raw, 0) + 1
+
                 # record winstreak of correct answers for user
 
                 if source.username_raw != self.winstreak[0]:
@@ -343,39 +358,40 @@ class TriviaModule(BaseModule):
 
     def load_commands(self, **options):
         self.commands['trivia'] = pajbot.models.command.Command.multiaction_command(
-                level=100,
-                delay_all=0,
-                delay_user=0,
-                can_execute_with_whisper=True,
-                commands={
-                    'start': pajbot.models.command.Command.raw_command(
-                        self.command_start,
-                        level=500,
-                        delay_all=0,
-                        delay_user=10,
-                        can_execute_with_whisper=True,
-                        ),
-                    'stop': pajbot.models.command.Command.raw_command(
-                        self.command_stop,
-                        level=500,
-                        delay_all=0,
-                        delay_user=0,
-                        can_execute_with_whisper=True,
-                        ),
-                    'skip': pajbot.models.command.Command.raw_command(
-	                self.command_skip,
-	                level=500,
-	                delay_all=0,
-	                delay_user=0,
-	                can_execute_with_whisper=True,
-                        )
-                    }
+            level=100,
+            delay_all=0,
+            delay_user=0,
+            can_execute_with_whisper=True,
+            commands={
+                'start': pajbot.models.command.Command.raw_command(
+                    self.command_start,
+                    level=500,
+                    delay_all=0,
+                    delay_user=10,
+                    can_execute_with_whisper=True,
+                ),
+                'stop': pajbot.models.command.Command.raw_command(
+                    self.command_stop,
+                    level=500,
+                    delay_all=0,
+                    delay_user=0,
+                    can_execute_with_whisper=True,
+                ),
+                'skip': pajbot.models.command.Command.raw_command(
+                    self.command_skip,
+                    level=500,
+                    delay_all=0,
+                    delay_user=0,
+                    can_execute_with_whisper=True,
                 )
+            }
+        )
 
     def enable(self, bot):
         self.bot = bot
         self.checkjob.resume()
         self.checkPaused = False
+
     def disable(self, bot):
         self.checkjob.pause()
         self.checkPaused = True
