@@ -423,15 +423,15 @@ class RaffleModule(BaseModule):
         winners = self.raffle_users[:num_winners]
         self.raffle_users = []
 
-        if negative:
-            points_per_user *= -1
-
         for winner in winners:
             if not winner.subscriber and random.randint(1, 10) > 5:
                 winners.remove(winner)
                 continue
 
         points_per_user = math.ceil(abs_points / len(winners))
+
+        if negative:
+            points_per_user *= -1
 
         self.bot.me('The multi-raffle has finished! {0} users won {1} points each! PogChamp'.format(len(winners), points_per_user))
 

@@ -76,7 +76,7 @@ class TriviaModule(BaseModule):
         self.step = 0
         self.last_step = None
         self.correct_dict = {}
-        
+
         self.gazCategories = ['W_OMEGALUL_W', 'Vietnam', 'Video_Games',
                               'Video Games', 'Twitch', 'Sports', 'Spongebob',
                               'Science', 'Programming', 'Music',
@@ -94,8 +94,6 @@ class TriviaModule(BaseModule):
         self.q_memory = 200            # No. of recent questions to remember
         self.winstreak = [None,None]   # Stored winstreak [user name, winstreak]
         self.min_streak = 3            # minimum correct answers for a streak 
-        
-
         self.point_bounty = 0
         
     def format_answer(self):

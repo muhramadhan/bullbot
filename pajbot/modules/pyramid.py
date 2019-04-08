@@ -82,7 +82,7 @@ class PyramidModule(BaseModule):
         self.regex = re.compile(' +')
 
     def on_pubmsg(self, source, message):
-        if source.username == 'twitchnotify':
+        if source.username == 'twitchnotify' or source.username == 'moobot' or source.username == 'admiralbullbot':
             return
 
         try:
