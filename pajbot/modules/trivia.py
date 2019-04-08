@@ -6,8 +6,8 @@ import random
 from collections import Counter
 
 import requests
-import Levenshtein
 
+import Levenshtein
 import pajbot.models
 from pajbot.managers.db import DBManager
 from pajbot.managers.handler import HandlerManager
@@ -152,7 +152,8 @@ class TriviaModule(BaseModule):
                         r = requests.get(
                             'http://159.203.60.127/questions?limit=1')
                         self.question = r.json()
-                        self.question['category'][0] = self.question['category'][0].upper()
+                        self.question['category'][0] = self.question['category'][0].upper(
+                        )
                         self.check_question()
                     else:
                         self.gazatuService = True
@@ -316,6 +317,7 @@ class TriviaModule(BaseModule):
             self.last_question = None
 
     def on_message(self, source, message, emotes, whisper, urls, event):
+        sendMessage = ''
         if message is None:
             return
 
@@ -330,34 +332,36 @@ class TriviaModule(BaseModule):
 
             if correct:
                 if self.point_bounty > 0:
-                    self.bot.safe_me('{} got the answer right! The answer was {} FeelsGoodMan They get {} points! PogChamp'.format(
-                        source.username_raw, self.question['answer'], self.point_bounty))
+                    sendMessage = '{} got the answer right! The answer was {} FeelsGoodMan They get {} points! PogChamp'.format(
+                        source.username_raw, self.question['answer'], self.point_bounty)
                     source.points += self.point_bounty
                 else:
-                    self.bot.safe_me('{} got the answer right! The answer was {} FeelsGoodMan'.format(
-                        source.username_raw, self.question['answer']))
+                    sendMessage = '{} got the answer right! The answer was {} FeelsGoodMan'.format(
+                        source.username_raw, self.question['answer'])
 
-                self.question = None
-                self.step = 0
-                self.last_question = datetime.datetime.now()
-                self.correct_dict[source.username_raw] = self.correct_dict.get(
+                self.question=None
+                self.step=0
+                self.last_question=datetime.datetime.now()
+                self.correct_dict[source.username_raw]=self.correct_dict.get(
                     source.username_raw, 0) + 1
 
                 # record winstreak of correct answers for user
 
                 if source.username_raw != self.winstreak[0]:
-                    self.winstreak = [source.username_raw, 1]
+                    self.winstreak=[source.username_raw, 1]
                 else:
                     self.winstreak[1] += 1
-                    if self.winstreak[1] >= 20:
-                        self.bot.safe_me('{} is on a {} question streak, get a life... FeelsWeirdMan'.format(
-                            *self.winstreak))
+                    if self.winstreak[1] >= 12:
+                        sendMessage += '{} is on a {} question streak. Get a life FeelsWeirdMan'.format(
+                            *self.winstreak)
                     elif self.winstreak[1] >= self.min_streak:
-                        self.bot.safe_me('{} is on a {} streak of correct answers PogU'.format(
-                            *self.winstreak))
+                        sendMessage += '{} is on a {} streak of correct answers Pog'.format(
+                            *self.winstreak)
+
+                self.bot.safe_me(sendMessage)
 
     def load_commands(self, **options):
-        self.commands['trivia'] = pajbot.models.command.Command.multiaction_command(
+        self.commands['trivia']=pajbot.models.command.Command.multiaction_command(
             level=100,
             delay_all=0,
             delay_user=0,
@@ -388,10 +392,10 @@ class TriviaModule(BaseModule):
         )
 
     def enable(self, bot):
-        self.bot = bot
+        self.bot=bot
         self.checkjob.resume()
-        self.checkPaused = False
+        self.checkPaused=False
 
     def disable(self, bot):
         self.checkjob.pause()
-        self.checkPaused = True
+        self.checkPaused=True
