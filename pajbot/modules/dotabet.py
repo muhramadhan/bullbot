@@ -331,7 +331,7 @@ class DotaBetModule(BaseModule):
             count_down = 15
             if message and message.isdigit():
                 count_down = int(message)
-            if count_down != 0:
+            if count_down > 0:
                 bot.me('Betting will be locked in {} seconds! Place your bets people monkaS'.format(count_down))
             bot.execute_delayed(count_down, self.lock_bets, (bot,))
         elif message:
