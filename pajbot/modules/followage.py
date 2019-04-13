@@ -102,48 +102,30 @@ class FollowAgeModule(BaseModule):
     def check_follow_age(self, bot, source, username, streamer, event):
         streamer = bot.streamer if streamer is None else streamer.lower()
         age = bot.twitchapi.get_follow_relationship(username, streamer)
-        is_self = source.username == username
         message = ''
 
         if age:
             # Following
             human_age = time_since(datetime.datetime.now().timestamp() - age.timestamp(), 0)
-            suffix = 'been following {} for {}'.format(streamer, human_age)
-            if is_self:
-                message = 'You have ' + suffix
-            else:
-                message = username + ' has ' + suffix
+            message = '{} has been following {} for {}'.format(username, streamer, human_age)
         else:
             # Not following
-            suffix = 'not following {}'.format(streamer)
-            if is_self:
-                message = 'You are ' + suffix
-            else:
-                message = username + ' is ' + suffix
+            message = '{} is not following {}'.format(username, streamer)
 
         bot.send_message_to_user(source, message, event, method=self.settings['action_followage'])
 
     def check_follow_since(self, bot, source, username, streamer, event):
         streamer = bot.streamer if streamer is None else streamer.lower()
         follow_since = bot.twitchapi.get_follow_relationship(username, streamer)
-        is_self = source.username == username
         message = ''
 
         if follow_since:
             # Following
             human_age = follow_since.strftime('%d %B %Y, %X')
-            suffix = 'been following {} since {} UTC'.format(streamer, human_age)
-            if is_self:
-                message = 'You have ' + suffix
-            else:
-                message = username + ' has ' + suffix
+            message = 'been following {} since {} UTC'.format(username, streamer, human_age)
         else:
             # Not following
-            suffix = 'not following {}'.format(streamer)
-            if is_self:
-                message = 'You are ' + suffix
-            else:
-                message = username + ' is ' + suffix
+            message = '{} is not following {}'.format(username, streamer)
 
         bot.send_message_to_user(source, message, event, method=self.settings['action_followsince'])
 
