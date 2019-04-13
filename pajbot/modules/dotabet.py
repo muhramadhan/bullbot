@@ -327,7 +327,14 @@ class DotaBetModule(BaseModule):
         source = options['source']
         message = options['message']
 
-        if message:
+        if self.betting_open:
+            count_down = 15
+            if message and message.isdigit():
+                count_down = int(message)
+            if count_down > 0:
+                bot.me('Betting will be locked in {} seconds! Place your bets people monkaS'.format(count_down))
+            bot.execute_delayed(count_down, self.lock_bets, (bot,))
+        elif message:
             if 'l' in message.lower() or 'dire' in message.lower():
                 self.spread_points('loss')
             else:
@@ -337,10 +344,6 @@ class DotaBetModule(BaseModule):
             self.lossBetters = 0
             self.calibrating = True
             self.spectating = False
-
-        if self.betting_open:
-            bot.me('Betting will be locked in 15 seconds! Place your bets people monkaS')
-            bot.execute_delayed(15, self.lock_bets, (bot,))
 
     def lock_bets(self, bot):
         self.betting_open = False
