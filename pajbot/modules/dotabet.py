@@ -314,23 +314,30 @@ class DotaBetModule(BaseModule):
         message = options['message']
         self.calibrating = True
 
-        if self.betting_open:
-            count_down = 15
-            if message and message.isdigit():
-                count_down = int(message)
-            if count_down > 0:
-                bot.me('Betting will be locked in {} seconds! Place your bets people monkaS'.format(count_down))
-            bot.execute_delayed(count_down, self.lock_bets, (bot,))
-        elif message:
-            if 'l' in message.lower() or 'dire' in message.lower():
-                self.spread_points('loss')
-            else:
-                self.spread_points('win')
+        if message:
+            if 'dire' in message:
+                self.isRadiant = False
+            elif 'radi' in message:
+                self.isRadiant = True
+            elif 'spectat' in message:
+                self.isRadiant = True
+                self.spectating = True
+                openString += '. Reminder to bet with radiant/dire instead of win/loss'
+                self.calibrating = False
+
+        if not self.betting_open:
             self.bets = {}
             self.winBetters = 0
             self.lossBetters = 0
-            self.calibrating = True
-            self.spectating = False
+            bot.websocket_manager.emit('notification', {'message': openString})
+            if not self.spectating:
+                bot.websocket_manager.emit('dotabet_new_game')
+            bot.me(openString)
+
+        self.betting_open = True
+        self.message_closed = False
+        self.job.pause()
+        self.jobPaused = True
 
     def command_stats(self, **options):
         bot = options['bot']
@@ -356,8 +363,7 @@ class DotaBetModule(BaseModule):
             if message and message.isdigit():
                 count_down = int(message)
             if count_down > 0:
-                bot.me('Betting will be locked in {} seconds! Place your bets people monkaS'.format(
-                    count_down))
+                bot.me('Betting will be locked in {} seconds! Place your bets people monkaS'.format(count_down))
             bot.execute_delayed(count_down, self.lock_bets, (bot,))
         elif message:
             if 'l' in message.lower() or 'dire' in message.lower():
