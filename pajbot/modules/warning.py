@@ -38,11 +38,7 @@ class WarningModule(BaseModule):
                 type='number',
                 required=True,
                 placeholder='Base timeout length for warnings in seconds',
-                default=10,
-                constraints={
-                    'min_value': 5,
-                    'max_value': 30,
-                    }),
+                default=10),
             ModuleSetting(
                 key='redis_prefix',
                 label='Prefix in the redis database. Only touch if you know what you\'re doing.',

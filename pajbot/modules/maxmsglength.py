@@ -8,7 +8,6 @@ log = logging.getLogger(__name__)
 
 
 class MaxMsgLengthModule(BaseModule):
-
     ID = __name__.split('.')[-1]
     NAME = 'Maximum message length'
     DESCRIPTION = 'Times out users who post messages that contain too many characters.'
@@ -42,11 +41,7 @@ class MaxMsgLengthModule(BaseModule):
                 type='number',
                 required=True,
                 placeholder='Timeout length in seconds',
-                default=120,
-                constraints={
-                    'min_value': 30,
-                    'max_value': 3600,
-                    }),
+                default=120),
             ModuleSetting(
                 key='bypass_level',
                 label='Level to bypass module',
@@ -67,12 +62,12 @@ class MaxMsgLengthModule(BaseModule):
     def on_message(self, source, message, emotes, whisper, urls, event):
         if whisper:
             return
-        if source.level >= self.settings['bypass_level'] or source.moderator:
+        if source.level >= self.settings['bypass_level'] or source.moderator or source.subscriber:
             return
 
         if self.bot.is_online:
             if len(message) > self.settings['max_msg_length']:
-                duration, punishment = self.bot.timeout_warn(source, self.settings['timeout_length'], reason='Message too long')
+                duration, punishment = self.bot.timeout(source, self.settings['timeout_length'], reason='Message too long')
                 """ We only send a notification to the user if he has spent more than
                 one hour watching the stream. """
                 if duration > 0 and source.minutes_in_chat_online > 60:
@@ -80,7 +75,7 @@ class MaxMsgLengthModule(BaseModule):
                 return False
         else:
             if len(message) > self.settings['max_msg_length_offline']:
-                duration, punishment = self.bot.timeout_warn(source, self.settings['timeout_length'], reason='Message too long')
+                duration, punishment = self.bot.timeout(source, self.settings['timeout_length'], reason='Message too long')
                 """ We only send a notification to the user if he has spent more than
                 one hour watching the stream. """
                 if duration > 0 and source.minutes_in_chat_online > 60:

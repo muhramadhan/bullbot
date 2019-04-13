@@ -103,15 +103,18 @@ class TriviaModule(BaseModule):
         self.question['answer'] = self.question['answer'].strip('"').strip('.')
 
         if self.question['answer'].lower().startswith('a '):
-            self.question['answer'] = self.question['answer'].replace('a ', '')
+            self.question['answer'] = self.question['answer'].replace(
+                'a ', '').replace('A ', '')
 
         elif self.question['answer'].lower().startswith('an '):
             self.question['answer'] = self.question['answer'].replace(
-                'an ', '')
+                'an ', '').replace('An ', '')
 
         if self.question['answer'].lower().startswith('the '):
             self.question['answer'] = self.question['answer'].replace(
                 'the ', '').replace('The ', '')
+
+        self.question['answer'] = self.question['answer'].strip()
 
     def check_question(self):
         if self.question['question'] not in self.recent_questions and \
@@ -121,6 +124,9 @@ class TriviaModule(BaseModule):
             try:
                 self.question['category'] = self.question['category'].replace(
                     '_', ' ')
+                self.question['category'] = self.question['category'][0].upper(
+                ) + self.question['category'][1:]
+
             except KeyError:
                 self.question['category'] = self.question['categories'][0].replace(
                     '_', ' ')
@@ -131,9 +137,9 @@ class TriviaModule(BaseModule):
     def poll_trivia(self):
         # Check if new question needed
         if self.question is None and \
-            (self.last_question is None
-         or (datetime.datetime.now() - self.last_question)
-                >= datetime.timedelta(seconds=11)):
+            (self.last_question is None or
+         (datetime.datetime.now() - self.last_question) >=
+                datetime.timedelta(seconds=11)):
 
             # GET TRIVIA QUESTION
 
@@ -152,8 +158,7 @@ class TriviaModule(BaseModule):
                         r = requests.get(
                             'http://159.203.60.127/questions?limit=1')
                         self.question = r.json()
-                        self.question['category'][0] = self.question['category'][0].upper(
-                        )
+                        self.question['category'] = self.question['categories'][0]
                         self.check_question()
                     else:
                         self.gazatuService = True
@@ -352,10 +357,10 @@ class TriviaModule(BaseModule):
                 else:
                     self.winstreak[1] += 1
                     if self.winstreak[1] >= 12:
-                        sendMessage += '{} is on a {} question streak. Get a life FeelsWeirdMan'.format(
+                        sendMessage += ' {} is on a {} question streak. Get a life FeelsWeirdMan'.format(
                             *self.winstreak)
                     elif self.winstreak[1] >= self.min_streak:
-                        sendMessage += '{} is on a {} streak of correct answers Pog'.format(
+                        sendMessage += ' {} is on a {} streak of correct answers Pog'.format(
                             *self.winstreak)
 
                 self.bot.safe_me(sendMessage)
